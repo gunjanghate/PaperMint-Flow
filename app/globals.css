@@ -20,3 +20,25 @@ body {
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
+
+
+[data-preview-page] {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+/* Disable print */
+@media print {
+  body {
+    display: none !important;
+  }
+}
+
+/* Disable screenshot on some browsers (limited support) */
+@media screen {
+  canvas[data-protected] {
+    -webkit-touch-callout: none;
+  }
+}

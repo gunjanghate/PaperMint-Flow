@@ -25,7 +25,7 @@ export const metadata = {
   keywords: [
     "AI datasets",
     "dataset marketplace",
-    "Filecoin",
+    "FLOW",
     "IPFS",
     "web3",
     "NFT",
@@ -33,7 +33,7 @@ export const metadata = {
   ],
   title: "PaperMint – AI Dataset Marketplace",
   description:
-    "Discover, buy, and sell high-quality AI datasets. Secure storage on IPFS/Filecoin with on-chain access control.",
+    "Discover, buy, and sell high-quality AI datasets. Secure storage on IPFS with on-chain access control.",
   url: "/",
   siteName: "PaperMint",
   images: [{ url: "/pmlogo.png", width: 512, height: 512, alt: "PaperMint logo" }],
