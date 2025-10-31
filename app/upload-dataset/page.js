@@ -78,168 +78,172 @@ export default function Home() {
         addNetworkIfNeeded();
     }, []);
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        console.log('Debug: Form submitted. Title:', formData.title, 'Research Paper:', file?.name, 'Image:', imageFile?.name, 'Wallet:', walletAddress);
-        if (!file || !imageFile || !formData.title || !walletConnected) {
-            alert('Connect wallet, title, research paper file, and image file are all required');
-            return;
-        }
-        if (!apiKey) {
-            alert('Missing API key');
-            return;
-        }
+const handleSubmit = async (e) => {
+    e.preventDefault();
 
-        setUploading(true);
-        setStepText('Uploading the research paper to Lighthouse...');
-        console.log('Debug: Starting upload/mint flow...');
+    if (!file || !imageFile || !formData.title || !walletConnected) {
+      alert("Connect wallet, title, research paper, and image are required");
+      return;
+    }
+    if (!apiKey) {
+      alert("Lighthouse API key missing");
+      return;
+    }
 
-        try {
-            // Upload research paper file to Lighthouse
-            console.log('Debug: Uploading research paper file to Lighthouse...');
-            const uploadResponse = await lighthouse.upload([file], apiKey);
-            console.log('Debug: Raw research paper upload response:', uploadResponse);
-            let cid;
-            if (uploadResponse && uploadResponse.data) {
-                if (typeof uploadResponse.data.Hash === 'string') {
-                    cid = uploadResponse.data.Hash;
-                } else if (Array.isArray(uploadResponse.data) && uploadResponse.data[0] && uploadResponse.data[0].Hash) {
-                    cid = uploadResponse.data[0].Hash;
-                } else if (uploadResponse.data.Hashes && Array.isArray(uploadResponse.data.Hashes) && uploadResponse.data.Hashes[0]) {
-                    cid = uploadResponse.data.Hashes[0];
-                }
-            }
-            if (!cid) throw new Error('CID not found in Lighthouse upload response');
+    setUploading(true);
+    setStepText("Encrypting research paper...");
+    setShowSuccess(false);
+    setResult(null);
 
-            // Upload image file to Lighthouse
-            console.log('Debug: Uploading image file to Lighthouse...');
-            setStepText('Uploading cover image...');
-            const imageUploadResponse = await lighthouse.upload([imageFile], apiKey);
-            console.log('Debug: Raw image upload response:', imageUploadResponse);
-            let imageCid;
-            if (imageUploadResponse && imageUploadResponse.data) {
-                if (typeof imageUploadResponse.data.Hash === 'string') {
-                    imageCid = imageUploadResponse.data.Hash;
-                } else if (Array.isArray(imageUploadResponse.data) && imageUploadResponse.data[0] && imageUploadResponse.data[0].Hash) {
-                    imageCid = imageUploadResponse.data[0].Hash;
-                } else if (imageUploadResponse.data.Hashes && Array.isArray(imageUploadResponse.data.Hashes) && imageUploadResponse.data.Hashes[0]) {
-                    imageCid = imageUploadResponse.data.Hashes[0];
-                }
-            }
-            if (!imageCid) throw new Error('Image CID not found in Lighthouse upload response');
-            console.log('Debug: Upload success! Research Paper CID:', cid, 'Image CID:', imageCid);
+    try {
+      // -------------------------------------------------
+      // 1. Read PDF as binary
+      // -------------------------------------------------
+      const pdfArrayBuffer = await file.arrayBuffer();
+      const pdfUint8 = new Uint8Array(pdfArrayBuffer);
+      console.log("Original PDF size:", pdfUint8.length, "bytes");
 
+      // -------------------------------------------------
+      // 2. Generate 256-bit AES key
+      // -------------------------------------------------
+      const rawKey = window.crypto.getRandomValues(new Uint8Array(32));
+      const keyHex = Array.from(rawKey)
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+      console.log("Generated AES-256 key (hex):", keyHex);
 
-            // Generate random bytes and hash them
-            const randomBytes = new Uint8Array(32);
-            window.crypto.getRandomValues(randomBytes);
-            const wordArray = CryptoJS.lib.WordArray.create(randomBytes);
-            const hashedKey = CryptoJS.SHA256(wordArray).toString();
-            console.log('Debug: Generated hashed key:', hashedKey);
+      // -------------------------------------------------
+      // 3. Encrypt PDF
+      // -------------------------------------------------
+      setStepText("Encrypting file with AES-256...");
+      const wordArray = CryptoJS.lib.WordArray.create(pdfUint8);
+      const encrypted = CryptoJS.AES.encrypt(wordArray, CryptoJS.enc.Hex.parse(keyHex), {
+        mode: CryptoJS.mode.ECB,
+        padding: CryptoJS.pad.Pkcs7,
+      });
 
-            // Create a proper metadata JSON and upload it so wallets can show the image
-            console.log('Debug: Creating on-chain metadata JSON...');
-            setStepText('Preparing metadata...');
+      // Convert ciphertext to Uint8Array
+      const ciphertextHex = encrypted.ciphertext.toString(CryptoJS.enc.Hex);
+      const hexPairs = ciphertextHex.match(/.{2}/g) || [];
+      const ciphertextBytes = new Uint8Array(
+        hexPairs.map((b) => parseInt(b, 16))
+      );
+      console.log("Encrypted size:", ciphertextBytes.length, "bytes");
 
-            // Use uploaded image CID for NFT display
-            const nftImageUrl = `https://gateway.lighthouse.storage/ipfs/${imageCid}`;
+      // Create encrypted file
+      const encryptedFile = new File([ciphertextBytes], `${file.name}.enc`, {
+        type: "application/octet-stream",
+      });
 
-            // ERC-721 metadata standard compliant JSON
-            const metadata = {
-                name: formData.title,
-                description: formData.description || 'Research Paper NFT on Filecoin',
-                image: nftImageUrl, // Primary field for image (required)
-                external_url: `https://gateway.lighthouse.storage/ipfs/${cid}`,
-                attributes: [
-                    {
-                        trait_type: "Research Paper CID",
-                        value: cid
-                    },
-                    {
-                        trait_type: "File Type",
-                        value: file.type || "application/octet-stream"
-                    },
-                    {
-                        trait_type: "File Name",
-                        value: file.name
-                    }
-                ]
-            };
+      // -------------------------------------------------
+      // 4. Upload encrypted file to Lighthouse
+      // -------------------------------------------------
+      setStepText("Uploading encrypted file to IPFS...");
+      const encUpload = await lighthouse.upload([encryptedFile], apiKey);
+      const cid =
+        encUpload.data?.Hash ??
+        encUpload.data?.[0]?.Hash ??
+        encUpload.data?.Hashes?.[0];
+      if (!cid) throw new Error("Failed to get encrypted CID");
+      console.log("Encrypted CID:", cid);
 
-            console.log('Debug: Metadata JSON to be uploaded:', JSON.stringify(metadata, null, 2));
+      // -------------------------------------------------
+      // 5. Upload cover image
+      // -------------------------------------------------
+      setStepText("Uploading cover image...");
+      const imgUpload = await lighthouse.upload([imageFile], apiKey);
+      const imageCid =
+        imgUpload.data?.Hash ??
+        imgUpload.data?.[0]?.Hash ??
+        imgUpload.data?.Hashes?.[0];
+      if (!imageCid) throw new Error("Failed to get image CID");
+      console.log("Image CID:", imageCid);
 
-            const metadataBlob = new Blob([JSON.stringify(metadata)], { type: 'application/json' });
-            const metadataFile = new File([metadataBlob], 'metadata.json', { type: 'application/json' });
-            console.log('Debug: Uploading metadata JSON to Lighthouse...');
-            setStepText('Uploading metadata...');
-            const metaUpload = await lighthouse.upload([metadataFile], apiKey);
-            console.log('Debug: Raw metadata upload response:', metaUpload);
-            let metadataCid;
-            if (metaUpload && metaUpload.data) {
-                if (typeof metaUpload.data.Hash === 'string') {
-                    metadataCid = metaUpload.data.Hash;
-                } else if (Array.isArray(metaUpload.data) && metaUpload.data[0] && metaUpload.data[0].Hash) {
-                    metadataCid = metaUpload.data[0].Hash;
-                } else if (metaUpload.data.Hashes && Array.isArray(metaUpload.data.Hashes) && metaUpload.data.Hashes[0]) {
-                    metadataCid = metaUpload.data.Hashes[0];
-                }
-            }
-            if (!metadataCid) throw new Error('Metadata CID not found in Lighthouse upload response');
-            console.log('Debug: Metadata uploaded. CID:', metadataCid);
+      // -------------------------------------------------
+      // 6. Create & upload metadata JSON
+      // -------------------------------------------------
+      setStepText("Preparing metadata...");
+      const metadata = {
+        name: formData.title,
+        description: formData.description || "Encrypted Research Paper NFT",
+        image: `https://gateway.lighthouse.storage/ipfs/${imageCid}`,
+        external_url: `https://gateway.lighthouse.storage/ipfs/${cid}`,
+        attributes: [
+          { trait_type: "Encrypted CID", value: cid },
+          { trait_type: "Original File", value: file.name },
+          { trait_type: "File Type", value: file.type || "application/pdf" },
+        ],
+      };
 
-            // Mint NFT on Calibration using metadata JSON CID as tokenURI
-            console.log('Debug: Starting mint...');
-            setStepText('Minting NFT on Filecoin testnet...');
-            const metadataUri = `https://gateway.lighthouse.storage/ipfs/${metadataCid}`;
-            console.log('Debug: Using token URI:', metadataUri);
-            const { txHash, tokenId } = await mintNFT(walletAddress, metadataUri, cid, hashedKey);
-            console.log('Debug: Minted! Token ID:', tokenId, 'Tx Hash:', txHash);
+      const metaBlob = new Blob([JSON.stringify(metadata, null, 2)], {
+        type: "application/json",
+      });
+      const metaFile = new File([metaBlob], "metadata.json");
 
-            // Send metadata to server
-            console.log('Debug: Sending metadata to server...');
-            setStepText('Saving listing to server...');
-            const res = await fetch('/api/upload', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    title: formData.title,
-                    description: formData.description,
-                    cid,
-                    imageCid, // Store the image CID
-                    metadataCid: metadataCid || null,
-                    authorAddress: walletAddress,
-                    decryptionKey: hashedKey,
-                    tokenId,
-                    txHash,
-                }),
-            });
-            const json = await res.json();
-            console.log('Debug: Server response:', json);
-            if (res.ok) {
-                setResult({ ...json, cid, txHash, tokenId });
-                setShowSuccess(true);
-                // Try to fetch metadata JSON from gateway for quick verification in browser
-                try {
-                    const gatewayUrl = `https://gateway.lighthouse.storage/ipfs/${metadataCid}`;
-                    console.log('Debug: Fetching metadata JSON from gateway:', gatewayUrl);
-                    const metaRes = await fetch(gatewayUrl);
-                    const metaJson = await metaRes.json();
-                    console.log('Debug: Retrieved metadata JSON:', metaJson);
-                } catch (metaErr) {
-                    console.warn('Debug: Could not fetch metadata JSON from gateway:', metaErr);
-                }
-            } else {
-                alert(`Metadata error: ${json.error}`);
-            }
-        } catch (error) {
-            console.error('Debug: Overall error in handleSubmit:', error);
-            alert(`Error: ${error.message}`);
-        } finally {
-            setUploading(false);
-            setStepText('');
-            console.log('Debug: Upload/mint flow ended.');
-        }
-    };
+      setStepText("Uploading metadata...");
+      const metaUp = await lighthouse.upload([metaFile], apiKey);
+      const metadataCid =
+        metaUp.data?.Hash ??
+        metaUp.data?.[0]?.Hash ??
+        metaUp.data?.Hashes?.[0];
+      if (!metadataCid) throw new Error("Failed to get metadata CID");
+      console.log("Metadata CID:", metadataCid);
+
+      // -------------------------------------------------
+      // 7. Mint NFT
+      // -------------------------------------------------
+      setStepText("Minting NFT on Filecoin testnet...");
+      const tokenUri = `https://gateway.lighthouse.storage/ipfs/${metadataCid}`;
+      const { txHash, tokenId } = await mintNFT(
+        walletAddress,
+        tokenUri,
+        cid,
+        keyHex // pass real key
+      );
+      console.log("Minted! Token ID:", tokenId, "Tx:", txHash);
+
+      // -------------------------------------------------
+      // 8. Save to backend
+      // -------------------------------------------------
+      setStepText("Saving to database...");
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: formData.title,
+          description: formData.description,
+          cid, // encrypted
+          imageCid,
+          metadataCid,
+          authorAddress: walletAddress,
+          decryptionKey: keyHex, // raw hex key
+          tokenId,
+          txHash,
+          fileType: file.type || "application/pdf",
+          originalFileName: file.name,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Server error");
+
+      // -------------------------------------------------
+      // 9. Success
+      // -------------------------------------------------
+      setResult({ ...json, cid, txHash, tokenId });
+      setShowSuccess(true);
+      setToast({ type: "success", message: "PDF encrypted, uploaded, and NFT minted!" });
+      setTimeout(() => setToast(null), 4000);
+
+    } catch (error) {
+      console.error("Upload error:", error);
+      setToast({ type: "error", message: `Error: ${error.message}` });
+      setTimeout(() => setToast(null), 5000);
+    } finally {
+      setUploading(false);
+      setStepText("");
+    }
+  };
 
     return (
         <div className="min-h-screen bg-slate-50">

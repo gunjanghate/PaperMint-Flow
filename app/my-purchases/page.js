@@ -21,8 +21,8 @@ export default function MyPurchases() {
     try {
       const res = await fetch(`/api/purchases?address=${address}`);
       const data = await res.json();
-      console.log("Fetched purchases:", data);
-      console.log("dec key", data[0].decryptionKey)
+      // console.log("Fetched purchases:", data);
+      // console.log("dec key", data[0].decryptionKey)
       setPurchases(data);
       setLoading(false);
     } catch (error) {
@@ -31,58 +31,56 @@ export default function MyPurchases() {
     }
   };
 
-  const handleDecrypt = async (purchase) => {
-    try {
-      const tokenIdToUse = purchase.purchaserTokenId || purchase.tokenId;
-      const decKey = purchase.decryption;
-      console.log("Using decryption key:", decKey);
+const handleDecrypt = async (purchase) => {
+  try {
+    const keyHex = purchase.decryptionKey;           // raw hex string (64 chars)
+    const cid    = purchase.cid;                     // encrypted file CID
+    const ipfsUrl = `https://gateway.lighthouse.storage/ipfs/${cid}`;
 
-      
+    // 1. Fetch binary encrypted data
+    const resp = await fetch(ipfsUrl);
+    if (!resp.ok) throw new Error(`IPFS fetch failed: ${resp.status}`);
+    const encBuffer = await resp.arrayBuffer();
+    const encUint8 = new Uint8Array(encBuffer);
 
-     
+    // 2. Convert to CryptoJS WordArray
+    const encWordArray = CryptoJS.lib.WordArray.create(encUint8);
 
-      const fileResponse = await fetch(
-        `https://gateway.lighthouse.storage/ipfs/${purchase.cid}`
-      );
-      if(!fileResponse){
-        throw new Error("File fetch failed from ipfs");
+    // 3. Decrypt
+    const decrypted = CryptoJS.AES.decrypt(
+      { ciphertext: encWordArray },
+      CryptoJS.enc.Hex.parse(keyHex),
+      { mode: CryptoJS.mode.ECB, padding: CryptoJS.pad.Pkcs7 }
+    );
 
-      }
-      const encText = await fileResponse.text(); 
-      const decrypted = CryptoJS.AES.decrypt(encText, decKey);
-
-      const decryptedBytes = decrypted.sigBytes;
-
-      if (!decryptedBytes) throw new Error("Decryption failed — invalid key or file");
-
-      const decryptedWordArray = decrypted;
-      const typedArray = new Uint8Array(decryptedWordArray.sigBytes);
-      const words = decryptedWordArray.words;
-      for (let i = 0; i < decryptedWordArray.sigBytes; i++) {
-        typedArray[i] = (words[i >>> 2] >>> (24 - (i % 4) * 8)) & 0xff;
-      }
-
-      // STEP 4: Convert back to original Blob
-      const blob = new Blob([typedArray], { type: purchase.fileType || "application/octet-stream" });
-
-      // STEP 5: Download decrypted file
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = purchase.title || "decrypted_file";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      setToast({ type: "success", message: "✅ File decrypted and downloaded successfully!" });
-      setTimeout(() => setToast(null), 3500);
-    } catch (error) {
-      setToast({ type: "error", message: `Decrypt error: ${error.message}` });
-      setTimeout(() => setToast(null), 4000);
+    // 4. WordArray → Uint8Array
+    const decryptedBytes = new Uint8Array(decrypted.sigBytes);
+    const words = decrypted.words;
+    for (let i = 0; i < decrypted.sigBytes; i++) {
+      decryptedBytes[i] = (words[i >>> 2] >>> (24 - (i % 4) * 8)) & 0xff;
     }
-  };
 
+    // 5. Build Blob with correct MIME + force .pdf
+    const mime = purchase.fileType || "application/pdf";
+    const blob = new Blob([decryptedBytes], { type: mime });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${purchase.title.replace(/[^a-z0-9]/gi, "_")}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    setToast({ type: "success", message: "PDF decrypted & downloaded!" });
+    setTimeout(() => setToast(null), 3500);
+  } catch (err) {
+    console.error("Decrypt error:", err);
+    setToast({ type: "error", message: `Decrypt error: ${err.message}` });
+    setTimeout(() => setToast(null), 4000);
+  }
+};
 
 
   useEffect(() => {
@@ -180,7 +178,7 @@ export default function MyPurchases() {
             {Array.isArray(purchases) && purchases.length > 0 ? (
               <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {purchases.map((purchase) => {
-                  console.log("purchase in map", purchase);
+                  // console.log("purchase in map", purchase);
                   const tokenId = purchase.purchaserTokenId || purchase.tokenId;
                   return (
                     <li
