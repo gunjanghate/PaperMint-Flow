@@ -5,38 +5,21 @@ import { ethers } from 'ethers';
 import { addNetworkIfNeeded, getDecryptionKey, ownerOfToken } from '@/lib/nft';
 import Link from 'next/link';
 import CryptoJS from 'crypto-js';
+import { useWallet } from '@/components/wallet/WalletProvider';
 
 export default function Datasets() {
   const [datasets, setDatasets] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [walletAddress, setWalletAddress] = useState(null);
-  const [walletConnected, setWalletConnected] = useState(false);
   const [accessing, setAccessing] = useState(null);
   const [query, setQuery] = useState('');
   const [sortBy, setSortBy] = useState('latest'); // latest | popular | price
+  const [toast, setToast] = useState(null); // { type: 'success'|'error'|'info', message: string }
 
-  const truncateAddress = (addr) => (addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : '');
+  const { walletAddress, isConnected: walletConnected, connectWallet, disconnectWallet, truncate: truncateFromCtx } = useWallet();
 
-  const connectWallet = async () => {
-    if (typeof window.ethereum !== 'undefined') {
-      try {
-        await addNetworkIfNeeded();
-        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-        setWalletAddress(accounts[0]);
-        setWalletConnected(true);
-      } catch (error) {
-        alert(`Connection error: ${error.message}`);
-      }
-    } else {
-      alert('MetaMask not installed');
-    }
-  };
+  const truncateAddress = (addr) => truncateFromCtx(addr);
 
-  const disconnectWallet = () => {
-    // MetaMask doesn't expose a programmatic disconnect; this clears local UI state.
-    setWalletAddress(null);
-    setWalletConnected(false);
-  };
+  // connectWallet / disconnectWallet come from context
 
   useEffect(() => {
     addNetworkIfNeeded();
@@ -57,51 +40,18 @@ export default function Datasets() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Keep wallet state in sync with MetaMask
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.ethereum === 'undefined') return;
-
-    // Initialize from current accounts
-    window.ethereum
-      .request({ method: 'eth_accounts' })
-      .then((accounts) => {
-        if (accounts && accounts.length > 0) {
-          setWalletAddress(accounts[0]);
-          setWalletConnected(true);
-        }
-      })
-      .catch(() => { });
-
-    const handleAccountsChanged = (accounts) => {
-      if (!accounts || accounts.length === 0) {
-        setWalletAddress(null);
-        setWalletConnected(false);
-      } else {
-        setWalletAddress(accounts[0]);
-        setWalletConnected(true);
-      }
-    };
-
-    const handleChainChanged = () => {
-      // Optional: refresh prices or UI when chain changes
-    };
-
-    window.ethereum.on('accountsChanged', handleAccountsChanged);
-    window.ethereum.on('chainChanged', handleChainChanged);
-
-    return () => {
-      try {
-        window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
-        window.ethereum.removeListener('chainChanged', handleChainChanged);
-      } catch { }
-    };
-  }, []);
+  // Wallet state is handled globally in WalletProvider
 
   console.log('Debug: datasets state:', datasets);
 
   const RAW_CHAIN_ID = process.env.NEXT_PUBLIC_CHAIN_ID;
-  const CHAIN_ID_INT = RAW_CHAIN_ID ? parseInt(RAW_CHAIN_ID, 10) : 314159;
-  const CHAIN_ID_HEX = '0x' + CHAIN_ID_INT.toString(16);
+  const CHAIN_ID_INT = RAW_CHAIN_ID ? parseInt(RAW_CHAIN_ID, 10) : 545;                // default 545 for Flow Testnet
+  const CHAIN_ID_HEX = "0x" + CHAIN_ID_INT.toString(16);
+
+  const RPC_URL = process.env.NEXT_PUBLIC_FVM_RPC; // expect this to be https://testnet.evm.nodes.onflow.org
+  const CHAIN_NAME = "Flow EVM Testnet";
+  const NATIVE_CURRENCY = { name: "FLOW", symbol: "FLOW", decimals: 18 };
+  const EXPLORER_URL = "https://evm-testnet.flowscan.io";
 
   const handleAccess = async (dataset) => {
     if (!walletConnected) {
@@ -111,44 +61,46 @@ export default function Datasets() {
     setAccessing(dataset._id);
 
     try {
-      console.log('Debug: handleAccess start dataset._id', dataset._id, 'tokenId', dataset.tokenId, 'cid', dataset.cid);
+      console.log("Debug: handleAccess start dataset._id", dataset._id, "tokenId", dataset.tokenId, "cid", dataset.cid);
       if (dataset.tokenId == null) {
-        throw new Error('Dataset missing tokenId; cannot fetch decryption key. Was mint completed and tokenId stored?');
+        throw new Error("Dataset missing tokenId; cannot fetch decryption key. Was mint completed and tokenId stored?");
       }
-      // Dynamic price in tfFIL
-      const views = dataset.views || 0;
-      const priceInFIL = 0.01 + views * 0.001;
-      const price = ethers.parseUnits(priceInFIL.toFixed(18), 'ether');
 
-      // Pay author
+      // dynamic price in tfFLOW (you called it tfFIL earlier) – just ensure symbol matches
+      const views = dataset.views || 0;
+      const priceInFLOW = 0.01 + views * 0.001;
+      const price = ethers.parseUnits(priceInFLOW.toFixed(18), "ether");
+
       const provider = new ethers.BrowserProvider(window.ethereum);
       await addNetworkIfNeeded();
+
       try {
-        await provider.send('wallet_switchEthereumChain', [{ chainId: CHAIN_ID_HEX }]);
+        await provider.send("wallet_switchEthereumChain", [{ chainId: CHAIN_ID_HEX }]);
       } catch (switchErr) {
-        console.warn('Debug: wallet_switchEthereumChain failed:', switchErr);
-        if (switchErr.code === 4902) { // Unrecognized chain
-          console.log('Debug: Chain not recognized, attempting wallet_addEthereumChain with', CHAIN_ID_HEX);
+        console.warn("Debug: wallet_switchEthereumChain failed:", switchErr);
+        if (switchErr.code === 4902) {
+          console.log("Debug: Chain not recognized, attempting wallet_addEthereumChain with", CHAIN_ID_HEX);
           try {
             await window.ethereum.request({
-              method: 'wallet_addEthereumChain',
+              method: "wallet_addEthereumChain",
               params: [{
                 chainId: CHAIN_ID_HEX,
-                chainName: 'Filecoin - Calibration testnet',
-                rpcUrls: [process.env.NEXT_PUBLIC_FVM_RPC],
-                nativeCurrency: { name: 'testFIL', symbol: 'tFIL', decimals: 18 },
-                blockExplorerUrls: ['https://calibration.filscan.io']
-              }]
+                chainName: CHAIN_NAME,
+                rpcUrls: [RPC_URL],
+                nativeCurrency: NATIVE_CURRENCY,
+                blockExplorerUrls: [EXPLORER_URL],
+              }],
             });
-            await provider.send('wallet_switchEthereumChain', [{ chainId: CHAIN_ID_HEX }]);
+            await provider.send("wallet_switchEthereumChain", [{ chainId: CHAIN_ID_HEX }]);
           } catch (addErr) {
-            console.error('Debug: Failed to add then switch network:', addErr);
+            console.error("Debug: Failed to add then switch network:", addErr);
             throw addErr;
           }
         } else {
           throw switchErr;
         }
       }
+
       const signer = await provider.getSigner();
       const tx = await signer.sendTransaction({
         to: dataset.authorAddress,
@@ -200,16 +152,9 @@ export default function Datasets() {
           ? `https://gateway.lighthouse.storage/ipfs/${dataset.metadataCid}`
           : 'N/A';
 
-        alert(`🎉 NFT Minted Successfully!\n\n` +
-          `Token ID: ${purchaserTokenId}\n` +
-          `Transaction: ${mintResult.txHash}\n` +
-          `Contract: ${process.env.NEXT_PUBLIC_CONTRACT_ADDRESS}\n\n` +
-          `Metadata URI: ${metadataLink}\n\n` +
-          `⚠️ If you don't see the NFT image in MetaMask:\n` +
-          `1. Wait 1-2 minutes for MetaMask to refresh\n` +
-          `2. Go to MetaMask → NFTs → "Refresh list"\n` +
-          `3. Click on the NFT to view details\n\n` +
-          `You can verify the metadata JSON at the link above.`);
+        // Toast a concise success message
+        setToast({ type: 'success', message: `🎉 NFT minted: Token #${purchaserTokenId}. Tx: ${mintResult.txHash?.slice(0, 10)}…` });
+        setTimeout(() => setToast(null), 5000);
 
         // Try to add NFT to MetaMask wallet for easier discovery
         try {
@@ -232,6 +177,8 @@ export default function Datasets() {
 
         // Wait briefly for blockchain state to propagate
         console.log('Debug: Waiting 3s for blockchain state sync and MetaMask refresh...');
+        setToast({ type: 'info', message: 'Syncing blockchain state (~3s)… MetaMask may need a moment to refresh.' });
+        setTimeout(() => setToast(null), 3500);
         await new Promise(resolve => setTimeout(resolve, 3000));
       }
 
@@ -327,11 +274,13 @@ export default function Datasets() {
         }
       }
 
-      alert(`Accessed & decrypted! Paid ${priceInFIL.toFixed(4)} tfFIL.`);
+      setToast({ type: 'success', message: `Access granted. Paid ${priceInFLOW.toFixed(4)} FLOW.` });
+      setTimeout(() => setToast(null), 4000);
       window.open(`https://gateway.lighthouse.storage/ipfs/${dataset.cid}`, '_blank');
     } catch (error) {
       console.error('Payment error:', error);
-      alert(`Payment error: ${error.message}`);
+      setToast({ type: 'error', message: `Payment error: ${error.message}` });
+      setTimeout(() => setToast(null), 5000);
     } finally {
       setAccessing(null);
     }
@@ -341,7 +290,7 @@ export default function Datasets() {
     return (
       <div className="px-6 py-10 max-w-6xl mx-auto">
         <div className="mb-6">
-          <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900">NFT-Gated Research Papers on Filecoin</h1>
+          <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900">NFT-Gated Research Papers on Blockchain</h1>
         </div>
         {/* Mobile actions */}
         <div className="sm:hidden mb-8 flex items-center justify-between">
@@ -425,7 +374,7 @@ export default function Datasets() {
         <div className="mb-8 flex items-end justify-between">
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-gray-900">Marketplace</h1>
-            <p className="mt-1 text-gray-600">Premium AI/ML research papers stored on decentralized Filecoin.</p>
+            <p className="mt-1 text-gray-600">Premium AI/ML research papers stored on Blockchain.</p>
           </div>
           <div className="hidden sm:flex items-center gap-3">
             {walletConnected ? (
@@ -513,7 +462,7 @@ export default function Datasets() {
           <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {displayDatasets.map((dataset) => {
               const views = dataset.views || 0;
-              const priceLabel = (0.01 + views * 0.001).toFixed(4) + ' tFIL';
+              const priceLabel = (0.01 + views * 0.001).toFixed(4) + ' flow';
               const accessType = 'NFT-Gated • Paid';
               const hasImage = Boolean(dataset.imageCid);
               return (
@@ -533,7 +482,7 @@ export default function Datasets() {
                       <div className="h-40 w-full bg-gradient-to-br from-gray-100 to-gray-200" />
                     )}
                     <div className="absolute left-3 top-3 inline-flex items-center rounded-full bg-white/80 px-2.5 py-1 text-xs font-medium text-gray-700 backdrop-blur">
-                      Stored on Filecoin
+                      Stored on IPFS
                     </div>
                     {/* Price badge */}
                     <div className="absolute right-3 top-3 rounded-full bg-blue-600/90 px-2.5 py-1 text-xs font-semibold text-white shadow-sm">
@@ -619,6 +568,21 @@ export default function Datasets() {
           <Link href="/nft-info" className="text-blue-600 hover:underline">🔍 Check NFT Info</Link>
         </div> */}
       </main>
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-5 right-5 z-50">
+          <div
+            className={`rounded-lg border px-4 py-3 shadow-md ${toast.type === 'success'
+                ? 'bg-white border-green-200 text-green-700'
+                : toast.type === 'error'
+                  ? 'bg-white border-red-200 text-red-700'
+                  : 'bg-white border-blue-200 text-blue-700'
+              }`}
+          >
+            {toast.message}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

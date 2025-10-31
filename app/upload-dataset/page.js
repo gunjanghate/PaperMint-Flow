@@ -6,6 +6,7 @@ import { mintNFT, addNetworkIfNeeded } from '@/lib/nft';
 import { ethers } from 'ethers';
 import Link from 'next/link';
 import CryptoJS from 'crypto-js';
+import { useWallet } from '@/components/wallet/WalletProvider';
 
 const apiKey = process.env.NEXT_PUBLIC_LIGHTHOUSE_API_KEY;
 
@@ -18,31 +19,14 @@ export default function Home() {
     const [imageFile, setImageFile] = useState(null); // NFT cover image
     const [uploading, setUploading] = useState(false);
     const [result, setResult] = useState(null);
-    const [walletAddress, setWalletAddress] = useState(null);
-    const [walletConnected, setWalletConnected] = useState(false);
+    const { walletAddress, isConnected: walletConnected, connectWallet } = useWallet();
     const [imagePreview, setImagePreview] = useState(null);
     const [dragImageOver, setDragImageOver] = useState(false);
     const [dragDatasetOver, setDragDatasetOver] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
     const [stepText, setStepText] = useState('');
 
-    const connectWallet = async () => {
-        console.log('Debug: Connecting wallet...');
-        if (typeof window.ethereum !== 'undefined') {
-            try {
-                await addNetworkIfNeeded();
-                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-                setWalletAddress(accounts[0]);
-                setWalletConnected(true);
-                console.log('Debug: Wallet connected:', accounts[0]);
-            } catch (error) {
-                console.error('Debug: Wallet connection failed:', error);
-                alert(`Connection error: ${error.message}`);
-            }
-        } else {
-            alert('MetaMask not installed');
-        }
-    };
+    // connectWallet is provided by wallet context
 
     const handleChange = (e) => {
         const { name, value, files } = e.target;

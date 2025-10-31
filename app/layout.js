@@ -1,6 +1,8 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Link from "next/link";
+import { WalletProvider } from "@/components/wallet/WalletProvider";
+import WalletButton from "@/components/wallet/WalletButton";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -23,83 +25,89 @@ export default function RootLayout({ children }) {
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <header className="sticky top-0 z-40 border-b border-white/60 bg-white/70 backdrop-blur supports-[backdrop-filter]:bg-white/70">
-          <div className="mx-auto max-w-7xl px-6">
-            <div className="flex h-16 items-center justify-between">
-              {/* Brand */}
-              <Link href="/" className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-lg bg-gradient-to-tr from-blue-600 to-cyan-400 shadow-sm" />
-                <span className="text-lg font-semibold tracking-tight text-slate-900">PaperMint</span>
-              </Link>
+        <WalletProvider>
+          <header className="sticky top-0 z-40 border-b border-white/60 bg-white/70 backdrop-blur supports-[backdrop-filter]:bg-white/70">
+            <div className="mx-auto max-w-7xl px-6">
+              <div className="flex h-16 items-center justify-between">
+                {/* Brand */}
+                <Link href="/" className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-lg bg-gradient-to-tr from-blue-600 to-cyan-400 shadow-sm" />
+                  <span className="text-lg font-semibold tracking-tight text-slate-900">PaperMint</span>
+                </Link>
 
-              {/* Desktop Nav */}
-              <nav className="hidden md:flex items-center gap-1">
-                <Link
-                  href="/datasets"
-                  className="group relative rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:text-slate-900"
-                >
-                  <span>Marketplace</span>
-                  <span className="pointer-events-none absolute inset-x-3 -bottom-0.5 h-px bg-gradient-to-r from-transparent via-slate-400/60 to-transparent opacity-0 transition group-hover:opacity-100" />
-                </Link>
-                <Link
-                  href="/upload-dataset"
-                  className="group relative rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:text-slate-900"
-                >
-                  <span>Upload Dataset</span>
-                  <span className="pointer-events-none absolute inset-x-3 -bottom-0.5 h-px bg-gradient-to-r from-transparent via-slate-400/60 to-transparent opacity-0 transition group-hover:opacity-100" />
-                </Link>
-                <Link
-                  href="/my-purchases"
-                  className="group relative rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:text-slate-900"
-                >
-                  <span>My Purchases</span>
-                  <span className="pointer-events-none absolute inset-x-3 -bottom-0.5 h-px bg-gradient-to-r from-transparent via-slate-400/60 to-transparent opacity-0 transition group-hover:opacity-100" />
-                </Link>
-                {/* <Link
+                {/* Desktop Nav */}
+                <nav className="hidden md:flex items-center gap-1">
+                  <Link
+                    href="/datasets"
+                    className="group relative rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:text-slate-900"
+                  >
+                    <span>Marketplace</span>
+                    <span className="pointer-events-none absolute inset-x-3 -bottom-0.5 h-px bg-gradient-to-r from-transparent via-slate-400/60 to-transparent opacity-0 transition group-hover:opacity-100" />
+                  </Link>
+                  <Link
+                    href="/upload-dataset"
+                    className="group relative rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:text-slate-900"
+                  >
+                    <span>Upload Dataset</span>
+                    <span className="pointer-events-none absolute inset-x-3 -bottom-0.5 h-px bg-gradient-to-r from-transparent via-slate-400/60 to-transparent opacity-0 transition group-hover:opacity-100" />
+                  </Link>
+                  <Link
+                    href="/my-purchases"
+                    className="group relative rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:text-slate-900"
+                  >
+                    <span>My Purchases</span>
+                    <span className="pointer-events-none absolute inset-x-3 -bottom-0.5 h-px bg-gradient-to-r from-transparent via-slate-400/60 to-transparent opacity-0 transition group-hover:opacity-100" />
+                  </Link>
+                  {/* <Link
                   href="/nft-info"
                   className="group relative rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:text-slate-900"
                 >
                   <span>NFT Info</span>
                   <span className="pointer-events-none absolute inset-x-3 -bottom-0.5 h-px bg-gradient-to-r from-transparent via-slate-400/60 to-transparent opacity-0 transition group-hover:opacity-100" />
                 </Link> */}
-              </nav>
+                </nav>
 
-              {/* CTA (desktop) */}
-              <div className="hidden md:flex items-center gap-3">
-                <Link
-                  href="/upload-dataset"
-                  className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-[#0070F3] to-[#00A3FF] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-105 hover:-translate-y-0.5 hover:shadow-md"
-                >
-                  Get Started
-                </Link>
-              </div>
-
-              {/* Mobile menu */}
-              <details className="relative md:hidden">
-                <summary className="list-none inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm">
-                  <span className="sr-only">Open menu</span>
-                  <span className="flex flex-col gap-1">
-                    <span className="h-[2px] w-5 bg-slate-700" />
-                    <span className="h-[2px] w-5 bg-slate-700" />
-                    <span className="h-[2px] w-5 bg-slate-700" />
-                  </span>
-                </summary>
-                <div className="absolute right-0 mt-3 w-64 origin-top-right rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
-                  <Link href="/datasets" className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Marketplace</Link>
-                  <Link href="/upload-dataset" className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Upload Dataset</Link>
-                  <Link href="/my-purchases" className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">My Purchases</Link>
-                  <Link href="/nft-info" className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">NFT Info</Link>
-                  <div className="mt-1 border-t border-slate-200 pt-2">
-                    <Link href="/upload-dataset" className="block w-full rounded-lg bg-gradient-to-r from-[#0070F3] to-[#00A3FF] px-3 py-2 text-center text-sm font-semibold text-white">
-                      Get Started
-                    </Link>
-                  </div>
+                {/* Wallet + CTA (desktop) */}
+                <div className="hidden md:flex items-center gap-3">
+                  <WalletButton />
+                  <Link
+                    href="/upload-dataset"
+                    className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-[#0070F3] to-[#00A3FF] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-105 hover:-translate-y-0.5 hover:shadow-md"
+                  >
+                    Get Started
+                  </Link>
                 </div>
-              </details>
+
+                {/* Mobile menu */}
+                <details className="relative md:hidden">
+                  <summary className="list-none inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm">
+                    <span className="sr-only">Open menu</span>
+                    <span className="flex flex-col gap-1">
+                      <span className="h-[2px] w-5 bg-slate-700" />
+                      <span className="h-[2px] w-5 bg-slate-700" />
+                      <span className="h-[2px] w-5 bg-slate-700" />
+                    </span>
+                  </summary>
+                  <div className="absolute right-0 mt-3 w-64 origin-top-right rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+                    <Link href="/datasets" className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Marketplace</Link>
+                    <Link href="/upload-dataset" className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Upload Dataset</Link>
+                    <Link href="/my-purchases" className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">My Purchases</Link>
+                    <Link href="/nft-info" className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">NFT Info</Link>
+                    <div className="mt-1 border-t border-slate-200 pt-2">
+                      <div className="mb-2">
+                        <WalletButton size="sm" />
+                      </div>
+                      <Link href="/upload-dataset" className="block w-full rounded-lg bg-gradient-to-r from-[#0070F3] to-[#00A3FF] px-3 py-2 text-center text-sm font-semibold text-white">
+                        Get Started
+                      </Link>
+                    </div>
+                  </div>
+                </details>
+              </div>
             </div>
-          </div>
-        </header>
-        <main>{children}</main>
+          </header>
+          <main>{children}</main>
+        </WalletProvider>
       </body>
     </html>
   );
