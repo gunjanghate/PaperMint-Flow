@@ -130,8 +130,11 @@ export default function Home() {
             console.log('Debug: Upload success! Research Paper CID:', cid, 'Image CID:', imageCid);
 
             // Generate decryption key (hashed from wallet for determinism)
-            const key = CryptoJS.enc.Utf8.parse(walletAddress.slice(2));
-            const hashedKey = CryptoJS.SHA256(key.toString()).toString();
+            // Generate random bytes and hash them
+            const randomBytes = new Uint8Array(32);
+            window.crypto.getRandomValues(randomBytes);
+            const wordArray = CryptoJS.lib.WordArray.create(randomBytes);
+            const hashedKey = CryptoJS.SHA256(wordArray).toString();
             console.log('Debug: Generated hashed key:', hashedKey);
 
             // Create a proper metadata JSON and upload it so wallets can show the image
