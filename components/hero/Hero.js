@@ -8,10 +8,10 @@ import { motion } from 'framer-motion';
 export default function Hero() {
     return (
         <section className="relative min-h-[88vh] overflow-hidden bg-gradient-to-b from-slate-50 via-white to-slate-50 isolate">
-            {/* /* Subtle grid background with radial mask */} 
-                        <div className="pointer-events-none absolute inset-0 -z-20 [mask-image:radial-gradient(ellipse_at_center,black,transparent_70%)] [background-image:linear-gradient(to_right,rgba(100,116,139,0.15)_1px,transparent_1px),linear-gradient(to_bottom,rgba(100,116,139,0.15)_1px,transparent_1px)] bg-[size:24px_24px]" />
+            {/* /* Subtle grid background with radial mask */}
+            <div className="pointer-events-none absolute inset-0 -z-20 [mask-image:radial-gradient(ellipse_at_center,black,transparent_70%)] [background-image:linear-gradient(to_right,rgba(100,116,139,0.15)_1px,transparent_1px),linear-gradient(to_bottom,rgba(100,116,139,0.15)_1px,transparent_1px)] bg-[size:24px_24px]" />
 
-                        {/* Ambient radial lights */}
+            {/* Ambient radial lights */}
             <div className="pointer-events-none absolute -top-24 -right-24 h-[32rem] w-[32rem] rounded-full bg-[radial-gradient(circle_at_center,_rgba(59,130,246,0.18),_transparent_90%)] blur-3xl -z-10" />
             <div className="pointer-events-none absolute -bottom-32 -left-24 h-[28rem] w-[28rem] rounded-full bg-[radial-gradient(circle_at_center,_rgba(16,185,129,0.14),_transparent_60%)] blur-3xl -z-10" />
 
@@ -43,7 +43,7 @@ export default function Hero() {
                         transition={{ duration: 0.4 }}
                         className="relative inline-flex items-center justify-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700"
                     >
-                        Filecoin‑powered Research Marketplace
+                        Blockchain‑powered Research Marketplace
                     </motion.div>
 
                     {/* Heading */}
@@ -98,7 +98,7 @@ export default function Hero() {
                         transition={{ duration: 0.6, delay: 0.3 }}
                         className="mt-6 text-xs sm:text-sm text-slate-500"
                     >
-                        <span>Powered by Filecoin</span>
+                        <span>Powered by Blockchain</span>
                         <span className="mx-2">•</span>
                         <span>Incentivized Peer Review</span>
                         <span className="mx-2">•</span>
@@ -113,7 +113,7 @@ export default function Hero() {
                         <div className="mt-1 text-xs text-slate-600">Secure access with on‑chain keys</div>
                     </div>
                     <div className="rounded-xl border border-slate-200 bg-white/70 px-6 py-4 backdrop-blur">
-                        <div className="text-2xl font-semibold text-slate-900">IPFS + Filecoin</div>
+                        <div className="text-2xl font-semibold text-slate-900">IPFS + Blockchain</div>
                         <div className="mt-1 text-xs text-slate-600">Decentralized storage by default</div>
                     </div>
                     <div className="rounded-xl border border-slate-200 bg-white/70 px-6 py-4 backdrop-blur">

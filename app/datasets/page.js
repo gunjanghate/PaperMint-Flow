@@ -59,227 +59,180 @@ export default function Datasets() {
       return;
     }
     setAccessing(dataset._id);
+    console.log(dataset.decryptionKey)
 
     try {
-      console.log("Debug: handleAccess start dataset._id", dataset._id, "tokenId", dataset.tokenId, "cid", dataset.cid);
-      if (dataset.tokenId == null) {
-        throw new Error("Dataset missing tokenId; cannot fetch decryption key. Was mint completed and tokenId stored?");
+      console.log("Debug: handleAccess start", { datasetId: dataset._id, tokenId: dataset.tokenId, cid: dataset.cid });
+
+      if (!dataset.tokenId) {
+        throw new Error("Dataset missing tokenId. Was mint completed?");
       }
 
-      // dynamic price in tfFLOW (you called it tfFIL earlier) – just ensure symbol matches
+      // Resolve the decryption key, fetching full dataset info if needed
+      const isValidKey = (k) => typeof k === 'string' && /^[0-9a-fA-F]{64}$/.test(k);
+      let decryptionKeyHex = dataset.decryptionKey;
+      if (!isValidKey(decryptionKeyHex)) {
+        try {
+          const idForInfo = typeof dataset._id === 'object' ? dataset._id.$oid || dataset._id.toString() : dataset._id;
+          const infoRes = await fetch(`/api/datasets/info?id=${idForInfo}`);
+          if (infoRes.ok) {
+            const info = await infoRes.json();
+            if (isValidKey(info?.decryptionKey)) {
+              decryptionKeyHex = info.decryptionKey;
+            }
+          }
+        } catch { }
+      }
+      if (!isValidKey(decryptionKeyHex)) {
+        throw new Error("Missing or invalid decryption key in dataset");
+      }
+
+      // 1. Calculate dynamic price
       const views = dataset.views || 0;
       const priceInFLOW = 0.01 + views * 0.001;
       const price = ethers.parseUnits(priceInFLOW.toFixed(18), "ether");
 
+      // 2. Switch network
       const provider = new ethers.BrowserProvider(window.ethereum);
       await addNetworkIfNeeded();
-
       try {
         await provider.send("wallet_switchEthereumChain", [{ chainId: CHAIN_ID_HEX }]);
-      } catch (switchErr) {
-        console.warn("Debug: wallet_switchEthereumChain failed:", switchErr);
-        if (switchErr.code === 4902) {
-          console.log("Debug: Chain not recognized, attempting wallet_addEthereumChain with", CHAIN_ID_HEX);
-          try {
-            await window.ethereum.request({
-              method: "wallet_addEthereumChain",
-              params: [{
-                chainId: CHAIN_ID_HEX,
-                chainName: CHAIN_NAME,
-                rpcUrls: [RPC_URL],
-                nativeCurrency: NATIVE_CURRENCY,
-                blockExplorerUrls: [EXPLORER_URL],
-              }],
-            });
-            await provider.send("wallet_switchEthereumChain", [{ chainId: CHAIN_ID_HEX }]);
-          } catch (addErr) {
-            console.error("Debug: Failed to add then switch network:", addErr);
-            throw addErr;
-          }
-        } else {
-          throw switchErr;
-        }
+      } catch (err) {
+        if (err.code === 4902) {
+          await window.ethereum.request({
+            method: "wallet_addEthereumChain",
+            params: [{
+              chainId: CHAIN_ID_HEX,
+              chainName: CHAIN_NAME,
+              rpcUrls: [RPC_URL],
+              nativeCurrency: NATIVE_CURRENCY,
+              blockExplorerUrls: [EXPLORER_URL],
+            }],
+          });
+          await provider.send("wallet_switchEthereumChain", [{ chainId: CHAIN_ID_HEX }]);
+        } else throw err;
       }
 
       const signer = await provider.getSigner();
+
+      // 3. Pay author
       const tx = await signer.sendTransaction({
         to: dataset.authorAddress,
         value: price,
       });
       await tx.wait();
 
-      // Check if purchaser already owns a token for this dataset, else mint a new one
-      console.log('Debug: Checking if purchaser owns existing token for dataset');
-      let onChainOwner = null;
+      // 4. Check if user already owns a token
       let purchaserTokenId = null;
       try {
-        onChainOwner = await ownerOfToken(dataset.tokenId);
-        console.log('Debug: Original token', dataset.tokenId, 'owner:', onChainOwner);
-        if (onChainOwner && onChainOwner.toLowerCase() === walletAddress.toLowerCase()) {
-          console.log('Debug: Purchaser already owns original token');
+        const owner = await ownerOfToken(dataset.tokenId);
+        if (owner.toLowerCase() === walletAddress.toLowerCase()) {
           purchaserTokenId = dataset.tokenId;
         }
       } catch (e) {
-        console.warn('Debug: Could not check original token ownership:', e.message);
+        console.warn("Original token not owned or doesn't exist");
       }
 
-      // If purchaser doesn't own the original token, mint a new one for them
-      let purchaserHashedKey = null;
+      // 5. Mint new NFT for purchaser (only if not owner)
       let mintResult = null;
       if (!purchaserTokenId) {
-        console.log('Debug: Purchaser does not own token; minting new NFT for them');
-        const key = CryptoJS.enc.Utf8.parse(walletAddress.slice(2));
-        purchaserHashedKey = CryptoJS.SHA256(key.toString()).toString();
+        console.log("Minting new NFT for purchaser...");
 
-        // Use the metadata JSON CID (with image) instead of dataset CID
         const metadataUri = dataset.metadataCid
           ? `https://gateway.lighthouse.storage/ipfs/${dataset.metadataCid}`
           : `https://gateway.lighthouse.storage/ipfs/${dataset.cid}`;
-        console.log('Debug: Using metadata URI for mint:', metadataUri);
 
         const { mintNFT } = await import('@/lib/nft');
-        console.log('Debug: About to call mintNFT for purchaser...');
-        mintResult = await mintNFT(walletAddress, metadataUri, dataset.cid, purchaserHashedKey);
+        mintResult = await mintNFT(walletAddress, metadataUri, dataset.cid, decryptionKeyHex); // ← PASS REAL KEY
         purchaserTokenId = mintResult.tokenId;
-        console.log('Debug: ✅ Successfully minted new token for purchaser!');
-        console.log('Debug: Token ID:', purchaserTokenId);
-        console.log('Debug: Tx Hash:', mintResult.txHash);
-        console.log('Debug: Wallet Address:', walletAddress);
-        console.log('Debug: Metadata URI used:', metadataUri);
 
-        // Show detailed success message to user
-        const metadataLink = dataset.metadataCid
-          ? `https://gateway.lighthouse.storage/ipfs/${dataset.metadataCid}`
-          : 'N/A';
+        setToast({ type: 'success', message: `NFT Minted: #${purchaserTokenId}` });
+        setTimeout(() => setToast(null), 4000);
 
-        // Toast a concise success message
-        setToast({ type: 'success', message: `🎉 NFT minted: Token #${purchaserTokenId}. Tx: ${mintResult.txHash?.slice(0, 10)}…` });
-        setTimeout(() => setToast(null), 5000);
-
-        // Try to add NFT to MetaMask wallet for easier discovery
+        // Suggest to MetaMask
         try {
-          const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
-          console.log('Debug: Suggesting NFT to MetaMask - Contract:', contractAddress, 'TokenId:', purchaserTokenId);
           await window.ethereum.request({
             method: 'wallet_watchAsset',
             params: {
               type: 'ERC721',
               options: {
-                address: contractAddress,
+                address: process.env.NEXT_PUBLIC_CONTRACT_ADDRESS,
                 tokenId: purchaserTokenId.toString(),
               },
             },
           });
-          console.log('Debug: NFT watch suggestion sent to MetaMask');
-        } catch (watchErr) {
-          console.warn('Debug: Could not suggest NFT to MetaMask (user may need to add manually):', watchErr.message);
-        }
+        } catch (e) { /* ignore */ }
 
-        // Wait briefly for blockchain state to propagate
-        console.log('Debug: Waiting 3s for blockchain state sync and MetaMask refresh...');
-        setToast({ type: 'info', message: 'Syncing blockchain state (~3s)… MetaMask may need a moment to refresh.' });
-        setTimeout(() => setToast(null), 3500);
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        await new Promise(r => setTimeout(r, 3000));
       }
 
-      // Fetch on-chain key or use locally generated one
-      let hashedKey;
-      try {
-        console.log('Debug: Fetching decryption key for purchaser tokenId', purchaserTokenId);
-        hashedKey = await getDecryptionKey(purchaserTokenId);
-        console.log('Debug: Retrieved hashed key from contract:', hashedKey);
-      } catch (keyErr) {
-        if (purchaserHashedKey) {
-          console.log('Debug: On-chain fetch failed (state lag?), using locally generated key:', purchaserHashedKey);
-          hashedKey = purchaserHashedKey;
-        } else {
-          throw keyErr;
-        }
+      // 6. Use the resolved decryption key (validated above)
+      const keyFromDB = decryptionKeyHex;
+
+      // 7. Store purchase record
+      await fetch('/api/purchases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          datasetId: dataset._id,
+          purchaserAddress: walletAddress,
+          purchaserTokenId,
+          txHash: tx.hash || null,
+          decryptionKey: keyFromDB, // required by API; server verifies and stores
+        }),
+      });
+
+      // 8. Download & decrypt (client-side)
+      console.log("Fetching encrypted file...");
+      const resp = await fetch(`https://gateway.lighthouse.storage/ipfs/${dataset.cid}`);
+      if (!resp.ok) throw new Error("Failed to fetch file");
+
+      const encBuffer = await resp.arrayBuffer();
+      const encUint8 = new Uint8Array(encBuffer);
+
+      const encWordArray = CryptoJS.lib.WordArray.create(encUint8);
+      const decrypted = CryptoJS.AES.decrypt(
+        { ciphertext: encWordArray },
+        CryptoJS.enc.Hex.parse(keyFromDB),
+        { mode: CryptoJS.mode.ECB, padding: CryptoJS.pad.Pkcs7 }
+      );
+
+      if (decrypted.sigBytes === 0) {
+        throw new Error("Decryption failed");
       }
 
-      // Derive key from current wallet and verify
-      const key = CryptoJS.enc.Utf8.parse(walletAddress.slice(2));
-      const derivedHashedKey = CryptoJS.SHA256(key.toString()).toString();
-      console.log('Debug: Current wallet:', walletAddress);
-      console.log('Debug: Derived hashed key from current wallet:', derivedHashedKey);
-      console.log('Debug: Expected hashed key (from contract):', hashedKey);
-
-      if (derivedHashedKey !== hashedKey) {
-        throw new Error('Key mismatch - internal error. Contact support.');
+      const decryptedBytes = new Uint8Array(decrypted.sigBytes);
+      const words = decrypted.words;
+      for (let i = 0; i < decrypted.sigBytes; i++) {
+        decryptedBytes[i] = (words[i >>> 2] >>> (24 - (i % 4) * 8)) & 0xff;
       }
 
-      console.log('Debug: Access granted! Key verification passed.');
+      const blob = new Blob([decryptedBytes], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      // const a = document.createElement("a");
+      // a.href = url;
+      // a.download = `${dataset.title.replace(/[^a-z0-9]/gi, "_")}.pdf`;
+      // a.click();
+      // URL.revokeObjectURL(url);
 
-      // NOTE: Files are currently uploaded unencrypted to Lighthouse.
-      // For demo, we skip decryption and download directly.
-      // TODO: Implement client-side encryption on upload + decryption here for real security.
+      // 9. Update views & purchaser list
+      setDatasets(prev => prev.map(d =>
+        d._id === dataset._id ? { ...d, views: (d.views || 0) + 1 } : d
+      ));
 
-      // Download file (currently plaintext, not encrypted)
-      console.log('Debug: Downloading file from IPFS...');
-      const fileResponse = await fetch(`https://gateway.lighthouse.storage/ipfs/${dataset.cid}`);
-      const fileBlob = await fileResponse.blob();
-
-      // Trigger download
-      const url = URL.createObjectURL(fileBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = dataset.title || 'research-paper';
-      a.click();
-      URL.revokeObjectURL(url);
-      console.log('Debug: File download initiated.');
-
-      // Store purchase record with purchaser's tokenId
-      try {
-        await fetch('/api/purchases', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            datasetId: dataset._id,
-            purchaserAddress: walletAddress,
-            purchaserTokenId: purchaserTokenId,
-            txHash: mintResult?.txHash || null
-          })
-        });
-        console.log('Debug: Purchase record stored.');
-      } catch (storeErr) {
-        console.warn('Debug: Failed to store purchase record:', storeErr);
-      }
-
-      // Increment views add purchaser
-      setDatasets(prev => prev.map(d => d._id === dataset._id ? { ...d, views: (d.views || 0) + 1 } : d));
-
-      // Normalize _id to string (handle { $oid: '...' } or ObjectId instances)
-      let idString = dataset._id;
-      if (typeof dataset._id === 'object' && dataset._id !== null) {
-        if (dataset._id.$oid) idString = dataset._id.$oid;
-        else if (dataset._id.toString) idString = dataset._id.toString();
-      }
-      console.log('Debug: Sending PATCH with id:', idString, 'type:', typeof idString);
-
-      const patchRes = await fetch('/api/datasets', {
+      const idString = typeof dataset._id === 'object' ? dataset._id.$oid || dataset._id.toString() : dataset._id;
+      await fetch('/api/datasets', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: idString, purchaser: walletAddress }),
       });
 
-      if (!patchRes.ok) {
-        console.warn('Debug: PATCH failed, reverting optimistic update');
-        // Re-fetch to stay in sync
-        const fresh = await fetch('/api/datasets').then(r => r.json()).catch(() => []);
-        setDatasets(fresh);
-      } else {
-        const json = await patchRes.json();
-        if (json?.dataset) {
-          setDatasets(prev => prev.map(d => d._id === json.dataset._id ? json.dataset : d));
-        }
-      }
-
-      setToast({ type: 'success', message: `Access granted. Paid ${priceInFLOW.toFixed(4)} FLOW.` });
+      setToast({ type: 'success', message: `Paid ${priceInFLOW.toFixed(4)} FLOW. PDF downloaded!` });
       setTimeout(() => setToast(null), 4000);
-      window.open(`https://gateway.lighthouse.storage/ipfs/${dataset.cid}`, '_blank');
+
     } catch (error) {
       console.error('Payment error:', error);
-      setToast({ type: 'error', message: `Payment error: ${error.message}` });
+      setToast({ type: 'error', message: `Error: ${error.message}` });
       setTimeout(() => setToast(null), 5000);
     } finally {
       setAccessing(null);
@@ -365,13 +318,13 @@ export default function Datasets() {
     });
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white to-gray-50 relative">
+    <div className="min-h-screen w-full overflow-x-hidden bg-gradient-to-b from-white to-gray-50 relative">
       {/* Ambient background accents */}
-      <div className="pointer-events-none absolute -top-20 -right-24 h-80 w-80 rounded-full bg-[radial-gradient(circle_at_center,_rgba(59,130,246,0.12),_transparent_60%)] blur-2xl" />
-      <div className="pointer-events-none absolute -bottom-24 -left-20 h-72 w-72 rounded-full bg-[radial-gradient(circle_at_center,_rgba(16,185,129,0.10),_transparent_60%)] blur-2xl" />
+      <div className="pointer-events-none absolute -top-20 -right-24 h-80 w-80 rounded-full bg-[radial-gradient(circle_at_center,_rgba(59,130,246,0.12),_transparent_60%)] blur-2xl overflow-hidden" />
+      <div className="pointer-events-none absolute -bottom-24 -left-20 h-72 w-72 rounded-full bg-[radial-gradient(circle_at_center,_rgba(16,185,129,0.10),_transparent_60%)] blur-2xl overflow-hidden" />
       <main className="mx-auto max-w-7xl px-6 py-12">
         {/* Section heading */}
-        <div className="mb-8 flex items-end justify-between">
+        <div className="mb-8 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-gray-900">Marketplace</h1>
             <p className="mt-1 text-gray-600">Premium AI/ML research papers stored on Blockchain.</p>
@@ -465,6 +418,7 @@ export default function Datasets() {
               const priceLabel = (0.01 + views * 0.001).toFixed(4) + ' flow';
               const accessType = 'NFT-Gated • Paid';
               const hasImage = Boolean(dataset.imageCid);
+            
               return (
                 <li
                   key={dataset._id}
@@ -505,8 +459,8 @@ export default function Datasets() {
                     </div>
 
                     {/* Meta line 2 */}
-                    <div className="mt-1 text-xs text-gray-600 flex items-center justify-between">
-                      <span className="truncate"><span className="font-medium text-gray-700">Author:</span> {truncateAddress(dataset.authorAddress || '')}</span>
+                    <div className="mt-1 text-xs text-gray-600 flex items-center justify-between min-w-0">
+                      <span className="truncate max-w-[70%]"><span className="font-medium text-gray-700">Author:</span> {truncateAddress(dataset.authorAddress || '')}</span>
                       <span className="text-gray-500">v{dataset.version || 1}</span>
                     </div>
 
@@ -546,12 +500,21 @@ export default function Datasets() {
                         </div>
                       )}
                       {dataset.previousCID && (
-                        <div className="col-span-2 truncate">
-                          <span className="font-medium text-gray-700">Prev CID:</span> {dataset.previousCID}
+                        <div className="col-span-2 min-w-0">
+                          <span className="font-medium text-gray-700">Prev CID:</span>{' '}
+                          <span className="truncate inline-block align-bottom max-w-full" title={dataset.previousCID}>{dataset.previousCID}</span>
                         </div>
                       )}
                       <div className="col-span-2">
-                        <span className="font-medium text-gray-700">Uploaded:</span> {new Date(dataset.uploadedAt).toLocaleString()}
+                        <span className="font-medium text-gray-700">Uploaded:</span>{' '}
+                        {(() => {
+                          try {
+                            const d = new Date(dataset.uploadedAt);
+                            return d.toLocaleString('en-US', { timeZone: 'UTC', dateStyle: 'medium', timeStyle: 'short' });
+                          } catch {
+                            return String(dataset.uploadedAt || 'Unknown');
+                          }
+                        })()}
                       </div>
                     </div>
                   </div>
@@ -570,13 +533,15 @@ export default function Datasets() {
       </main>
       {/* Toast */}
       {toast && (
-        <div className="fixed bottom-5 right-5 z-50">
+        <div className="fixed bottom-5 right-5 z-50 max-w-sm sm:max-w-md">
           <div
-            className={`rounded-lg border px-4 py-3 shadow-md ${toast.type === 'success'
-                ? 'bg-white border-green-200 text-green-700'
-                : toast.type === 'error'
-                  ? 'bg-white border-red-200 text-red-700'
-                  : 'bg-white border-blue-200 text-blue-700'
+            role="status"
+            aria-live="polite"
+            className={`rounded-lg border px-4 py-3 shadow-lg break-words whitespace-pre-line pointer-events-auto ${toast.type === 'success'
+              ? 'bg-white border-green-200 text-green-700'
+              : toast.type === 'error'
+                ? 'bg-white border-red-200 text-red-700'
+                : 'bg-white border-blue-200 text-blue-700'
               }`}
           >
             {toast.message}

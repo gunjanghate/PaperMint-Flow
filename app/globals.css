@@ -16,3 +16,7 @@ body {
     )
     rgb(var(--background-start-rgb));
 }
+*{
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}

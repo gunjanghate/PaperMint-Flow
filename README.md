@@ -1,6 +1,6 @@
-# Filecoin HBD - On‑Chain Research Publishing with NFT Rewards
+# Blockchain HBD - On‑Chain Research Publishing with NFT Rewards
 
-Filecoin HBD is a Next.js app for publishing research datasets and papers on‑chain. Authors are rewarded and receive an NFT minted as proof of ownership. Buyers can purchase access, and all activity is tracked via MongoDB and smart contract events.
+Blockchain HBD is a Next.js app for publishing research datasets and papers on‑chain. Authors are rewarded and receive an NFT minted as proof of ownership. Buyers can purchase access, and all activity is tracked via MongoDB and smart contract events.
 
 ## Highlights
 
@@ -15,7 +15,7 @@ Filecoin HBD is a Next.js app for publishing research datasets and papers on‑c
 - Next.js 15 (App Router)
 - React 19
 - MongoDB (Atlas)
-- Lighthouse SDK for IPFS/Filecoin storage
+- Lighthouse SDK for IPFS/Blockchain storage
 - Smart contracts (Solidity) in `contract/` (DatasetNFT)
 
 ## Project structure
@@ -38,7 +38,7 @@ contract/
 
 - Node.js 18+
 - A MongoDB Atlas cluster (recommended) or MongoDB instance
-- An RPC endpoint for Filecoin Calibration (default provided)
+- An RPC endpoint for Blockchain Calibration (default provided)
 
 ## Environment variables
 
@@ -54,12 +54,13 @@ NEXT_PUBLIC_LIGHTHOUSE_API_KEY=<your_lighthouse_key>
 # Deployed DatasetNFT address
 NEXT_PUBLIC_NFT_CONTRACT_ADDRESS=<0x...>
 
-# Filecoin Calibration RPC + chain id
+# Blockchain Calibration RPC + chain id
 NEXT_PUBLIC_FVM_RPC=https://api.calibration.node.glif.io/rpc/v1
 NEXT_PUBLIC_CHAIN_ID=314159
 ```
 
 Notes:
+
 - Keep `/researchdb` at the end of your Mongo URI so it matches the code (`client.db('researchdb')`).
 - If your Mongo password has special characters (e.g., `@` or `/`), URL‑encode it.
 - For development, in Atlas set Network Access to your IP or 0.0.0.0/0 (temporary) and create a database user.
@@ -79,21 +80,26 @@ Start-Process http://localhost:3000
 
 ## Core flows
 
-1) Upload dataset (app UI → `app/api/upload/route.js`)
+1. Upload dataset (app UI → `app/api/upload/route.js`)
+
 - Stores metadata (title, description, CIDs, tokenId, txHash) into MongoDB
 
-2) List datasets (`GET /api/datasets`)
+2. List datasets (`GET /api/datasets`)
+
 - Returns datasets ordered by `uploadedAt`, serializes `_id` to string
 
-3) View/purchase update (`PATCH /api/datasets`)
+3. View/purchase update (`PATCH /api/datasets`)
+
 - Body: `{ id, purchaser }`
 - Increments `views` and adds `purchasers` entry
 
-4) Record a purchase (`POST /api/purchases`)
+4. Record a purchase (`POST /api/purchases`)
+
 - Body: `{ datasetId, purchaserAddress, purchaserTokenId, txHash }`
 - Upserts a record keyed by `datasetId + purchaserAddress`
 
-5) Fetch purchases (`GET /api/purchases?address=0x...`)
+5. Fetch purchases (`GET /api/purchases?address=0x...`)
+
 - Returns purchased datasets enriched with `purchaserTokenId`
 
 ## API reference (summary)
@@ -106,6 +112,7 @@ Start-Process http://localhost:3000
 ## Data model (MongoDB)
 
 Collection `datasets` (example):
+
 ```
 {
 	_id: ObjectId,
@@ -127,6 +134,7 @@ Collection `datasets` (example):
 ```
 
 Collection `purchases` (example):
+
 ```
 {
 	_id: ObjectId,
@@ -148,15 +156,17 @@ Collection `purchases` (example):
 ## Troubleshooting
 
 - Mongo connection fails
-	- Ensure `MONGODB_URI` is set and valid in `.env`.
-	- Atlas Network Access allows your IP; a DB user is created with proper roles.
-	- If you see auth errors, URL‑encode your password.
+
+  - Ensure `MONGODB_URI` is set and valid in `.env`.
+  - Atlas Network Access allows your IP; a DB user is created with proper roles.
+  - If you see auth errors, URL‑encode your password.
 
 - Dataset not found on PATCH
-	- IDs can be ObjectId strings or raw strings in older data. The route tries both.
+
+  - IDs can be ObjectId strings or raw strings in older data. The route tries both.
 
 - NFT/tokenId missing
-	- Confirm contract deployment address and RPC are set via `NEXT_PUBLIC_NFT_CONTRACT_ADDRESS` and `NEXT_PUBLIC_FVM_RPC`.
+  - Confirm contract deployment address and RPC are set via `NEXT_PUBLIC_NFT_CONTRACT_ADDRESS` and `NEXT_PUBLIC_FVM_RPC`.
 
 ## License
 

@@ -71,7 +71,7 @@ export default function NFTInfo() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen w-full overflow-x-hidden bg-gradient-to-b from-white to-gray-50">
       <div className="mx-auto max-w-2xl px-6 py-10">
         {/* Back link */}
         <div className="mb-4">

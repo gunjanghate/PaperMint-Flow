@@ -1,131 +1,116 @@
 import clientPromise from "@/lib/mongodb";
+import { uploadText } from "@lighthouse-web3/sdk";
+import { ObjectId } from "mongodb";
 
-// Store a purchase record with the purchaser's minted tokenId
 export async function POST(request) {
+  let client;
   try {
-    const { datasetId, purchaserAddress, purchaserTokenId, txHash } = await request.json();
+    const body = await request.json();
+    console.log("POST /api/purchases raw body:", body);
 
-    console.debug('API POST /api/purchases body:', { datasetId, purchaserAddress, purchaserTokenId, txHash });
+    const { datasetId, purchaserAddress, purchaserTokenId, txHash, decryptionKey } = body;
 
-    if (!datasetId || !purchaserAddress || !purchaserTokenId) {
-      return Response.json({ error: 'Missing required fields' }, { status: 400 });
-    }
+    client = await clientPromise;
+    const db = client.db(process.env.MONGODB_DB || "researchdb");
+    const purchasesCollection = db.collection("purchases");
+    const datasetsCollection = db.collection("datasets");
 
-    const client = await clientPromise;
-    const db = client.db(process.env.MONGODB_DB || 'researchdb');
-    const purchasesCollection = db.collection('purchases');
+    // Normalize datasetId
+    const normalizedDatasetId =
+      typeof datasetId === "object" && datasetId.$oid
+        ? datasetId.$oid
+        : String(datasetId);
 
-    // Normalize datasetId to string for consistent storage
-    const normalizedDatasetId = typeof datasetId === 'object' && datasetId.$oid
-      ? datasetId.$oid
-      : String(datasetId);
+    console.log("Normalized datasetId:", normalizedDatasetId);
 
-    console.debug('API POST /api/purchases normalized datasetId:', normalizedDatasetId);
-
-    // Check if purchase already exists (prevent duplicates)
+    // --- Handle duplicate purchase ---
     const existing = await purchasesCollection.findOne({
       datasetId: normalizedDatasetId,
-      purchaserAddress: purchaserAddress.toLowerCase()
+      purchaserAddress: purchaserAddress.toLowerCase(),
     });
 
     if (existing) {
-      console.debug('API POST /api/purchases updating existing record');
-      // Update with new token if different
+      console.log("Duplicate purchase found, updating...");
+
       await purchasesCollection.updateOne(
         { _id: existing._id },
         {
           $set: {
             purchaserTokenId: parseInt(purchaserTokenId),
             txHash,
-            updatedAt: new Date()
-          }
+            updatedAt: new Date(),
+          },
         }
       );
+
       return Response.json({ ok: true, updated: true });
     }
 
-    console.debug('API POST /api/purchases creating new record');
-    // Create new purchase record
+
+    // --- Insert purchase record ---
     const result = await purchasesCollection.insertOne({
       datasetId: normalizedDatasetId,
       purchaserAddress: purchaserAddress.toLowerCase(),
       purchaserTokenId: parseInt(purchaserTokenId),
       txHash,
-      purchasedAt: new Date()
+      // cid: dataset.cid,
+      // decryptionKey: dataset.decryptionKey || decryptionKey,
+      // fileType: dataset.fileType,
+      // title: dataset.title,
+      // imageCid: dataset.imageCid,
+      // metadataCid: dataset.metadataCid,
+      purchasedAt: new Date(),
+      updatedAt: new Date(),
     });
 
-    console.debug('API POST /api/purchases created with insertedId:', result.insertedId);
+    console.log("Purchase saved:", result.insertedId);
+
     return Response.json({ ok: true, insertedId: result.insertedId });
+
   } catch (error) {
-    console.error('Store purchase error:', error);
-    return Response.json({ error: 'Failed to store purchase' }, { status: 500 });
+    console.error("FATAL ERROR in /api/purchases:", error);
+    return Response.json(
+      { error: "Failed to store purchase", details: error.message },
+      { status: 500 }
+    );
   }
 }
 
-// Get purchases for a specific address with their tokenIds
+
+// GET: Return enriched purchases with decryption key + fileType
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const address = searchParams.get('address');
-
-    console.debug('API GET /api/purchases address:', address);
+    const address = searchParams.get("address");
+    const tokenId = searchParams.get("tokenId"); // optional filter
 
     if (!address) {
-      return Response.json({ error: 'Address required' }, { status: 400 });
+      return Response.json({ error: "Address required" }, { status: 400 });
     }
 
     const client = await clientPromise;
-    const db = client.db(process.env.MONGODB_DB || 'researchdb');
-    const purchasesCollection = db.collection('purchases');
-    const datasetsCollection = db.collection('datasets');
+    const db = client.db(process.env.MONGODB_DB || "researchdb");
+    const purchasesCollection = db.collection("purchases");
 
-    // Find all purchases for this address
-    const purchases = await purchasesCollection.find({
-      purchaserAddress: address.toLowerCase()
-    }).toArray();
+    const query = { purchaserAddress: address.toLowerCase() };
+    if (tokenId) {
+      query.purchaserTokenId = parseInt(tokenId);
+    }
 
-    console.debug('API GET /api/purchases found', purchases.length, 'purchase records');
+    const purchases = await purchasesCollection.find(query).toArray();
 
-    // Enrich with dataset details
-    const enriched = await Promise.all(purchases.map(async (purchase) => {
-      console.debug('API GET /api/purchases enriching purchase with datasetId:', purchase.datasetId, 'type:', typeof purchase.datasetId);
-
-      // Handle both string and ObjectId datasetId
-      let dataset = null;
-      if (typeof purchase.datasetId === 'string') {
-        // Try ObjectId match first
-        if (purchase.datasetId.length === 24 && /^[0-9a-fA-F]{24}$/.test(purchase.datasetId)) {
-          const { ObjectId } = await import('mongodb');
-          dataset = await datasetsCollection.findOne({ _id: new ObjectId(purchase.datasetId) });
-        }
-        // Fallback to string match
-        if (!dataset) {
-          dataset = await datasetsCollection.findOne({ _id: purchase.datasetId });
-        }
-      } else {
-        // datasetId is already an ObjectId
-        dataset = await datasetsCollection.findOne({ _id: purchase.datasetId });
-      }
-
-      console.debug('API GET /api/purchases dataset found:', !!dataset, 'title:', dataset?.title);
-
-      if (!dataset) return null;
-
-      return {
-        ...dataset,
-        _id: dataset._id.toString(), // Serialize for frontend
-        purchaserTokenId: purchase.purchaserTokenId, // This is the key field!
-        purchaseTxHash: purchase.txHash,
-        purchasedAt: purchase.purchasedAt,
-        decryption: dataset.decryptionKey
-      };
+    const enriched = purchases.map((purchase) => ({
+      _id: purchase._id.toString(),
+      datasetId: purchase.datasetId,
+      purchaserAddress: purchase.purchaserAddress,
+      purchaserTokenId: purchase.purchaserTokenId,
+      txHash: purchase.txHash,
+  
     }));
 
-    const filtered = enriched.filter(p => p !== null);
-    console.debug('API GET /api/purchases returning', filtered.length, 'enriched purchases');
-    return Response.json(filtered);
+    return Response.json(enriched);
   } catch (error) {
-    console.error('Fetch purchases error:', error);
-    return Response.json({ error: 'Failed to fetch purchases' }, { status: 500 });
+    console.error("Fetch purchases error:", error);
+    return Response.json({ error: "Failed to fetch purchases", details: error.message }, { status: 500 });
   }
 }
