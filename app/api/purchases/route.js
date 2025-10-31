@@ -116,7 +116,8 @@ export async function GET(request) {
         _id: dataset._id.toString(), // Serialize for frontend
         purchaserTokenId: purchase.purchaserTokenId, // This is the key field!
         purchaseTxHash: purchase.txHash,
-        purchasedAt: purchase.purchasedAt
+        purchasedAt: purchase.purchasedAt,
+        decryption: dataset.decryptionKey
       };
     }));
 

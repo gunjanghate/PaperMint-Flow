@@ -5,7 +5,7 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const address = searchParams.get('address');
-    console.log('Debug: Fetching purchases for address', address);
+    console.log('Hii there! Fetching purchases for address')
     if (!address) {
       return Response.json({ error: 'Address required' }, { status: 400 });
     }

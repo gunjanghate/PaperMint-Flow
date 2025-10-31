@@ -129,7 +129,7 @@ export default function Home() {
             if (!imageCid) throw new Error('Image CID not found in Lighthouse upload response');
             console.log('Debug: Upload success! Research Paper CID:', cid, 'Image CID:', imageCid);
 
-            // Generate decryption key (hashed from wallet for determinism)
+
             // Generate random bytes and hash them
             const randomBytes = new Uint8Array(32);
             window.crypto.getRandomValues(randomBytes);
