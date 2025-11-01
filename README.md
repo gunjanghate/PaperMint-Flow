@@ -18,14 +18,23 @@ The platform blends decentralized storage (IPFS via Lighthouse), blockchain proo
 ## 🚀 Core Features
 
 ✔ Publish research papers with metadata & IPFS CIDs
+
 ✔ AES-encrypted datasets for secure access control
+
 ✔ NFT minted to the author as proof of ownership
+
 ✔ Buyers pay authors & receive an access NFT
+
 ✔ All actions indexed in MongoDB
+
 ✔ NRC (dynamic pricing via view-based increase)
+
 ✔ Dataset access only if wallet + NFT validated
+
 ✔ Track purchases + access on-chain + off-chain
+
 ✔ Simple UI for browsing & purchasing papers
+
 
 ---
 
@@ -53,6 +62,21 @@ The platform blends decentralized storage (IPFS via Lighthouse), blockchain proo
 
 ---
 
+## Network & Contract Information
+
+PaperMint is built on **Flow Blockchain**.
+
+### Network
+- **Flow Testnet**
+
+### Deployed Contract Addresses
+- **DatasetNFT Contract:**  
+  `0xFeaAaFc2758C5Aee35d822A530Af4C02ADcb9A5e`
+
+> Note: This deployment is currently on Flow Testnet.  
+  Mainnet deployment will follow once testing is complete.
+
+---
 ## 🗂 Project Structure
 
 ```
