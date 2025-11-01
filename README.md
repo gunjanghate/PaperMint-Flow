@@ -1,173 +1,251 @@
-# Blockchain HBD - On‑Chain Research Publishing with NFT Rewards
+<img width="1464" height="819" alt="image" src="https://github.com/user-attachments/assets/85c54c6c-908d-4333-bf5b-4261ee904803" />
 
-Blockchain HBD is a Next.js app for publishing research datasets and papers on‑chain. Authors are rewarded and receive an NFT minted as proof of ownership. Buyers can purchase access, and all activity is tracked via MongoDB and smart contract events.
 
-## Highlights
+# 📄 PaperMint — Research Paper NFT Marketplace
 
-- Publish datasets with metadata and IPFS/Lighthouse CIDs
-- Mint an NFT to the author as proof of ownership
-- Reward authors when datasets are purchased
-- Track purchases and token IDs on‑chain and in the database
-- Next.js App Router, Tailwind CSS, MongoDB Atlas
+**PaperMint** is a web-based marketplace where authors can publish encrypted research papers, mint NFTs as proof of authorship, and earn revenue when others purchase access.
+Buyers receive NFT access tokens and can securely decrypt/download purchased datasets.
 
-## Tech stack
+The platform blends decentralized storage (IPFS via Lighthouse), blockchain proofs (NFT minting), and traditional metadata indexing (MongoDB) to provide a trust-preserving publishing experience.
 
-- Next.js 15 (App Router)
-- React 19
-- MongoDB (Atlas)
-- Lighthouse SDK for IPFS/Blockchain storage
-- Smart contracts (Solidity) in `contract/` (DatasetNFT)
+> ✅ Built for researchers
+> ✅ Fair monetization
+> ✅ Secure gated access
+> ✅ Transparent on-chain history
 
-## Project structure
+---
+
+## 🚀 Core Features
+
+✔ Publish research papers with metadata & IPFS CIDs
+✔ AES-encrypted datasets for secure access control
+✔ NFT minted to the author as proof of ownership
+✔ Buyers pay authors & receive an access NFT
+✔ All actions indexed in MongoDB
+✔ NRC (dynamic pricing via view-based increase)
+✔ Dataset access only if wallet + NFT validated
+✔ Track purchases + access on-chain + off-chain
+✔ Simple UI for browsing & purchasing papers
+
+---
+
+## 🧩 Tech Stack
+
+**Frontend**
+
+* Next.js 15 (App Router)
+* React 19
+* Tailwind CSS
+* ShadCN UI
+
+**Blockchain / Storage**
+
+* Solidity smart contracts (DatasetNFT)
+* Lighthouse for IPFS storage
+* FVM / EVM provider
+
+**Backend**
+
+* MongoDB Atlas
+* Next.js API Routes
+* Ethers.js
+* AES Encryption (CryptoJS)
+
+---
+
+## 🗂 Project Structure
 
 ```
 app/
-	api/
-		datasets/route.js      # list datasets, increment views/purchasers
-		purchases/route.js     # store and fetch purchases with tokenIds
-		my-purchases/route.js  # list datasets bought by an address
-	...pages
+  api/
+    datasets/route.js        # list + update (views, purchasers)
+    purchases/route.js       # purchase store & fetch
+    my-purchases/route.js    # list datasets bought by user
+  ...
 lib/
-	mongodb.js               # MongoDB client (uses MONGODB_URI)
-	nft.js                   # NFT interactions (minting, etc.)
+  mongodb.js                 # Mongo client
+  nft.js                     # NFT minting + owner check
 contract/
-	DatasetNFT.sol, NewDatasetNFT.sol
+  DatasetNFT.sol
+  NewDatasetNFT.sol
 ```
 
-## Prerequisites
+---
 
-- Node.js 18+
-- A MongoDB Atlas cluster (recommended) or MongoDB instance
-- An RPC endpoint for Blockchain Calibration (default provided)
+## 🔐 Data Model
 
-## Environment variables
-
-Create a `.env` file in the project root with:
+### `datasets` collection
 
 ```
-# MongoDB Atlas SRV URI (use your real values)
-MONGODB_URI=mongodb+srv://<username>:<password>@<cluster>.<abcde>.mongodb.net/researchdb?retryWrites=true&w=majority&appName=<appName>
+{
+  _id: ObjectId,
+  title: string,
+  description: string,
+  cid: string,              // encrypted paper
+  imageCid?: string,
+  metadataCid?: string,
+  decryptionKey?: string,   // AES key (hex)
+  authorAddress: string,
+  tokenId?: number,         // author NFT
+  txHash?: string,          // author mint tx
+  version?: number,
+  previousCID?: string,
+  views: number,
+  purchasers: string[],
+  uploadedAt: Date
+}
+```
 
-# Lighthouse API key (client-side use enabled)
-NEXT_PUBLIC_LIGHTHOUSE_API_KEY=<your_lighthouse_key>
+### `purchases` collection
 
-# Deployed DatasetNFT address
-NEXT_PUBLIC_NFT_CONTRACT_ADDRESS=<0x...>
+```
+{
+  _id: ObjectId,
+  datasetId: string,
+  purchaserAddress: string,
+  purchaserTokenId: number,
+  txHash?: string,          // purchase/mint tx
+  decryptionKey: string,    // copy for safety
+  purchasedAt: Date,
+  updatedAt?: Date
+}
+```
 
-# Blockchain Calibration RPC + chain id
+---
+
+## 🔄 Core Flows
+
+### 1) Upload → Mint → Publish
+
+* Client encrypts dataset locally → uploads to Lighthouse
+* Metadata stored in MongoDB
+* Author NFT minted
+* Dataset tokenId + txHash saved
+
+### 2) View datasets
+
+`GET /api/datasets`
+
+* Lists all papers sorted by latest
+
+### 3) Purchase + Mint Access Token
+
+Payment flow:
+
+* User pays author
+* System checks if user already owns token
+* If not → new NFT minted
+* Purchase record saved w/ token + txHash
+* AES key resolved via DB
+* Paper downloaded + decrypted client-side
+* Views + purchasers updated
+
+### 4) Retrieve Purchases
+
+`GET /api/my-purchases`
+
+---
+
+## 🔗 API Summary
+
+| Route               | Method | Description                     |
+| ------------------- | ------ | ------------------------------- |
+| `/api/datasets`     | GET    | List all datasets               |
+| `/api/datasets`     | PATCH  | Increment views + add purchaser |
+| `/api/purchases`    | POST   | Record purchase                 |
+| `/api/purchases`    | GET    | Get purchases for wallet        |
+| `/api/my-purchases` | GET    | Shortcut → user-owned papers    |
+
+---
+
+## 🔧 Environment Variables
+
+`.env`
+
+```
+MONGODB_URI=...
+
+# IPFS
+NEXT_PUBLIC_LIGHTHOUSE_API_KEY=...
+
+# Contract
+NEXT_PUBLIC_NFT_CONTRACT_ADDRESS=0x...
+
+# RPC + Chain
 NEXT_PUBLIC_FVM_RPC=https://api.calibration.node.glif.io/rpc/v1
 NEXT_PUBLIC_CHAIN_ID=314159
 ```
 
-Notes:
+> ⚠ If Mongo password contains special chars → URL-encode it.
 
-- Keep `/researchdb` at the end of your Mongo URI so it matches the code (`client.db('researchdb')`).
-- If your Mongo password has special characters (e.g., `@` or `/`), URL‑encode it.
-- For development, in Atlas set Network Access to your IP or 0.0.0.0/0 (temporary) and create a database user.
+---
 
-## Install and run (Windows PowerShell)
+## 🏁 Setup
 
-```powershell
-# From the project root
+```bash
 npm install
-
-# Start the dev server
 npm run dev
-
-# Open the app
-Start-Process http://localhost:3000
 ```
 
-## Core flows
+Open → [http://localhost:3000](http://localhost:3000)
 
-1. Upload dataset (app UI → `app/api/upload/route.js`)
+---
 
-- Stores metadata (title, description, CIDs, tokenId, txHash) into MongoDB
+## ⚙ Development Details
 
-2. List datasets (`GET /api/datasets`)
+✅ Hot reload works automatically
+✅ MongoDB uses pooled client via global instance
+✅ Server logs via `console.debug/error`
+✅ Decryption uses AES-ECB + PKCS7
+✅ NFT metadata stored on Lighthouse
 
-- Returns datasets ordered by `uploadedAt`, serializes `_id` to string
+---
 
-3. View/purchase update (`PATCH /api/datasets`)
+## 🔐 Security Notes
 
-- Body: `{ id, purchaser }`
-- Increments `views` and adds `purchasers` entry
+* AES encryption applied client-side
+* AES key stored in DB & purchase logs for redundancy
+* Must match 64-hex signature or rejected
+* NFT ownership checked before allowing decrypt access
+* Payments directly to author wallet
 
-4. Record a purchase (`POST /api/purchases`)
+> Reality check → Keys in DB are safe enough for this prototype but can be hardened via key-wrapping / remote KMS in future.
 
-- Body: `{ datasetId, purchaserAddress, purchaserTokenId, txHash }`
-- Upserts a record keyed by `datasetId + purchaserAddress`
+---
 
-5. Fetch purchases (`GET /api/purchases?address=0x...`)
+## ✅ Current Limitations / Roadmap
 
-- Returns purchased datasets enriched with `purchaserTokenId`
+* ⏳ No royalties beyond initial purchase
+* 🔜 Author dashboards
+* 🔜 Multi-edition release model
+* 🔜 Optional zero-knowledge pay-to-view
+* 🔜 On-chain metadata synchronization
 
-## API reference (summary)
+Forward scope is huge — especially around researcher reputation and indexing.
 
-- `GET /api/datasets` → `[{ ...dataset, _id: string }]`
-- `PATCH /api/datasets` → `{ ok: true, dataset }` (requires `{ id, purchaser }`)
-- `POST /api/purchases` → `{ ok: true, insertedId } | { ok: true, updated: true }`
-- `GET /api/purchases?address=0x...` → enriched dataset list for an address
+---
 
-## Data model (MongoDB)
-
-Collection `datasets` (example):
-
-```
-{
-	_id: ObjectId,
-	title: string,
-	description: string,
-	cid: string,             # data CID
-	imageCid?: string,
-	metadataCid?: string,
-	version: number,
-	previousCID?: string,
-	views: number,
-	purchasers: string[],    # wallet addresses
-	authorAddress: string,
-	decryptionKey?: string,  # hashed/derived if used
-	tokenId?: number,        # author’s minted NFT token id
-	txHash?: string,
-	uploadedAt: Date
-}
-```
-
-Collection `purchases` (example):
-
-```
-{
-	_id: ObjectId,
-	datasetId: string,       # dataset _id as string
-	purchaserAddress: string,
-	purchaserTokenId: number,
-	txHash?: string,
-	purchasedAt: Date,
-	updatedAt?: Date
-}
-```
-
-## Development tips
-
-- Hot reload: files under `app/` update automatically.
-- Logs: API routes log to the server console with `console.debug/console.error`.
-- Mongo connection: configured in `lib/mongodb.js`, reuses a global client in development.
-
-## Troubleshooting
-
-- Mongo connection fails
-
-  - Ensure `MONGODB_URI` is set and valid in `.env`.
-  - Atlas Network Access allows your IP; a DB user is created with proper roles.
-  - If you see auth errors, URL‑encode your password.
-
-- Dataset not found on PATCH
-
-  - IDs can be ObjectId strings or raw strings in older data. The route tries both.
-
-- NFT/tokenId missing
-  - Confirm contract deployment address and RPC are set via `NEXT_PUBLIC_NFT_CONTRACT_ADDRESS` and `NEXT_PUBLIC_FVM_RPC`.
-
-## License
+## 📝 License
 
 MIT
+
+---
+
+# Why PaperMint?
+
+Publishing is broken — paywalls and opaque journals dominate distribution.
+PaperMint flips it:
+
+* Direct author payments
+* Ownership proof on-chain
+* Instant access
+* Open yet permissioned
+
+Researchers deserve better.
+This is step one.
+
+Let’s build 🔥
+
+
+
+Just say the word.
