@@ -17,23 +17,23 @@ const geistMono = Geist_Mono({
 
 export const metadata = {
   title: {
-    default: "PaperMint – AI Dataset Marketplace",
+    default: "PaperMint – AI Research Paper Marketplace",
     template: "%s • PaperMint",
   },
   description:
-    "Discover, buy, and sell high-quality AI datasets. Secure storage on IPFS/Filecoin with on-chain access control.",
+    "Discover, buy, and sell high-quality AI Research Papers. Secure storage on IPFS/Filecoin with on-chain access control.",
   keywords: [
-    "AI datasets",
-    "dataset marketplace",
+    "AI Research Papers",
+    "Research Paper marketplace",
     "FLOW",
     "IPFS",
     "web3",
     "NFT",
     "data sharing",
   ],
-  title: "PaperMint – AI Dataset Marketplace",
+  title: "PaperMint – AI Research Paper Marketplace",
   description:
-    "Discover, buy, and sell high-quality AI datasets. Secure storage on IPFS with on-chain access control.",
+    "Discover, buy, and sell high-quality AI Research Papers. Secure storage on IPFS with on-chain access control.",
   url: "/",
   siteName: "PaperMint",
   images: [{ url: "/pmlogo.png", width: 512, height: 512, alt: "PaperMint logo" }],
@@ -77,7 +77,7 @@ export default function RootLayout({ children }) {
                     href="/upload-dataset"
                     className="group relative rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:text-slate-900"
                   >
-                    <span>Upload Dataset</span>
+                    <span>Upload Research Paper</span>
                     <span className="pointer-events-none absolute inset-x-3 -bottom-0.5 h-px bg-gradient-to-r from-transparent via-slate-400/60 to-transparent opacity-0 transition group-hover:opacity-100" />
                   </Link>
                   <Link
@@ -100,7 +100,7 @@ export default function RootLayout({ children }) {
                 <div className="hidden md:flex items-center gap-3">
                   <WalletButton />
                   <Link
-                    href="/upload-dataset"
+                    href="/upload-Research Paper"
                     className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-[#0070F3] to-[#00A3FF] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-105 hover:-translate-y-0.5 hover:shadow-md"
                   >
                     Get Started
@@ -118,15 +118,15 @@ export default function RootLayout({ children }) {
                     </span>
                   </summary>
                   <div className="absolute right-0 mt-3 w-64 origin-top-right rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
-                    <Link href="/datasets" className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Marketplace</Link>
-                    <Link href="/upload-dataset" className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Upload Dataset</Link>
+                    <Link href="/Research Papers" className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Marketplace</Link>
+                    <Link href="/upload-Research Paper" className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Upload Research Paper</Link>
                     <Link href="/my-purchases" className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">My Purchases</Link>
                     <Link href="/nft-info" className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">NFT Info</Link>
                     <div className="mt-1 border-t border-slate-200 pt-2">
                       <div className="mb-2">
                         <WalletButton size="sm" />
                       </div>
-                      <Link href="/upload-dataset" className="block w-full rounded-lg bg-gradient-to-r from-[#0070F3] to-[#00A3FF] px-3 py-2 text-center text-sm font-semibold text-white">
+                      <Link href="/upload-Research Paper" className="block w-full rounded-lg bg-gradient-to-r from-[#0070F3] to-[#00A3FF] px-3 py-2 text-center text-sm font-semibold text-white">
                         Get Started
                       </Link>
                     </div>

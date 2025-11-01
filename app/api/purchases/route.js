@@ -78,39 +78,48 @@ export async function POST(request) {
 
 
 // GET: Return enriched purchases with decryption key + fileType
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const address = searchParams.get("address");
-    const tokenId = searchParams.get("tokenId"); // optional filter
+    const tokenId = searchParams.get("tokenId");
 
     if (!address) {
       return Response.json({ error: "Address required" }, { status: 400 });
     }
 
     const client = await clientPromise;
-    const db = client.db(process.env.MONGODB_DB || "researchdb");
-    const purchasesCollection = db.collection("purchases");
+    const db = client.db("researchdb");
+    const purchases = db.collection("purchases");
 
     const query = { purchaserAddress: address.toLowerCase() };
-    if (tokenId) {
-      query.purchaserTokenId = parseInt(tokenId);
-    }
+    if (tokenId) query.purchaserTokenId = parseInt(tokenId);
 
-    const purchases = await purchasesCollection.find(query).toArray();
+    const results = await purchases.find(query).toArray();
 
-    const enriched = purchases.map((purchase) => ({
-      _id: purchase._id.toString(),
-      datasetId: purchase.datasetId,
-      purchaserAddress: purchase.purchaserAddress,
-      purchaserTokenId: purchase.purchaserTokenId,
-      txHash: purchase.txHash,
-  
+    // RETURN FULL DATA FOR MY PURCHASES
+    const enriched = results.map((p) => ({
+      _id: p._id.toString(),
+      datasetId: p.datasetId,
+      purchaserTokenId: p.purchaserTokenId,
+      txHash: p.txHash,
+      cid: p.cid,
+      decryptionKey: p.decryptionKey,
+      fileType: p.fileType,
+      title: p.title,
+      imageCid: p.imageCid,
+      metadataCid: p.metadataCid,
+      purchasedAt: p.purchasedAt,
     }));
 
     return Response.json(enriched);
+
   } catch (error) {
-    console.error("Fetch purchases error:", error);
-    return Response.json({ error: "Failed to fetch purchases", details: error.message }, { status: 500 });
+    console.error("GET /api/purchases error:", error);
+    return Response.json(
+      { error: "Failed to fetch purchases", details: error.message },
+      { status: 500 }
+    );
   }
 }

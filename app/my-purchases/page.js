@@ -17,45 +17,89 @@ export default function MyPurchases() {
   const explorerTxUrl = (hash) =>
     `https://evm-testnet.flowscan.io/tx/${hash}`;
 
-  const fetchPurchases = async (address) => {
-    try {
-      setLoading(true); // ← ADD THIS
+const fetchPurchases = async (address) => {
+  if (!address || !address.startsWith("0x") || address.length !== 42) {
+    setToast({ type: "error", message: "Invalid wallet address" });
+    return;
+  }
 
-      const res = await fetch(`/api/purchases?address=${address}`);
-      if (!res.ok) throw new Error("Failed to fetch purchases");
-      const data = await res.json();
+  try {
+    setLoading(true);
 
-      // Enrich with dataset details
-      const enriched = await Promise.all(
-        data.map(async (p) => {
-          try {
-            const datasetRes = await fetch(`/api/datasets/info?id=${p.datasetId}`);
-            if (datasetRes.ok) {
-              const dataset = await datasetRes.json();
-              return {
-                ...p,
-                decryptionKey: dataset.decryptionKey || null,
-                title: dataset.title || p.title || "Untitled",
-                description: dataset.description || p.description || "",
-                imageCid: dataset.imageCid || null,
-                metadataCid: dataset.metadataCid || null,
-              };
-            }
-          } catch (e) {
-            console.warn("Failed to enrich dataset:", p.datasetId, e);
-          }
-          return p; // fallback
-        })
-      );
+    console.log("Fetching purchases for:", address);
 
-      setPurchases(enriched);
-    } catch (error) {
-      console.error("Fetch error:", error);
-      setToast({ type: "error", message: "Failed to load purchases" });
-    } finally {
-      setLoading(false); // ← ENSURE THIS RUNS
+    // 1. Fetch purchases from DB
+    const res = await fetch(`/api/purchases?address=${address.toLowerCase()}`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "Unknown error" }));
+      throw new Error(err.error || `HTTP ${res.status}`);
     }
-  };
+
+    const data = await res.json();
+
+    if (!Array.isArray(data)) {
+      console.warn("Invalid response format:", data);
+      setPurchases([]);
+      return;
+    }
+
+    console.log("Raw purchases:", data);
+
+    // 2. Enrich each purchase with dataset info
+    const enriched = await Promise.all(
+      data.map(async (p) => {
+        const datasetId = p.datasetId || p._id;
+        if (!datasetId) {
+          console.warn("Missing datasetId in purchase:", p);
+          return p;
+        }
+
+        try {
+          const infoRes = await fetch(`/api/datasets/info?id=${datasetId}`);
+          if (infoRes.ok) {
+            const dataset = await infoRes.json();
+            return {
+              _id: p._id?.toString() || p.id,
+              datasetId,
+              purchaserTokenId: p.purchaserTokenId,
+              txHash: p.txHash,
+              cid: p.cid || dataset.cid,
+              decryptionKey: p.decryptionKey || dataset.decryptionKey,
+              fileType: p.fileType || dataset.fileType || "application/pdf",
+              title: dataset.title || p.title || "Untitled Research",
+              description: dataset.description || p.description || "",
+              imageCid: dataset.imageCid || p.imageCid,
+              metadataCid: dataset.metadataCid || p.metadataCid,
+              purchasedAt: p.purchasedAt,
+            };
+          } else {
+            console.warn(`Dataset info failed for ${datasetId}: ${infoRes.status}`);
+          }
+        } catch (e) {
+          console.warn("Enrich failed:", datasetId, e);
+        }
+
+        // Fallback: return what we have
+        return {
+          ...p,
+          _id: p._id?.toString() || p.id,
+          title: p.title || "Untitled",
+          decryptionKey: p.decryptionKey || null,
+        };
+      })
+    );
+
+    console.log("Enriched purchases:", enriched);
+    setPurchases(enriched);
+
+  } catch (error) {
+    console.error("Fetch purchases error:", error);
+    setToast({ type: "error", message: `Failed to load purchases: ${error.message}` });
+    setPurchases([]);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleDecrypt = async (purchase) => {
     const id = purchase._id;
