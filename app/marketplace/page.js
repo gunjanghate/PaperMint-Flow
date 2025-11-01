@@ -325,8 +325,9 @@ export default function Datasets() {
     });
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden bg-gradient-to-b from-white to-gray-50 relative">
+    <div className="min-h-screen w-full overflow-x-hidden bg-gradient-to-b from-white to-blue-100 relative">
       {/* Ambient background accents */}
+      
       <div className="pointer-events-none absolute -top-20 -right-24 h-80 w-80 rounded-full bg-[radial-gradient(circle_at_center,_rgba(59,130,246,0.12),_transparent_60%)] blur-2xl overflow-hidden" />
       <div className="pointer-events-none absolute -bottom-24 -left-20 h-72 w-72 rounded-full bg-[radial-gradient(circle_at_center,_rgba(16,185,129,0.10),_transparent_60%)] blur-2xl overflow-hidden" />
       <main className="mx-auto max-w-7xl px-6 py-12">

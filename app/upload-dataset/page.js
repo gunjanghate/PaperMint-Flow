@@ -232,7 +232,7 @@ export default function Home() {
     };
 
     return (
-        <div className="min-h-screen w-full overflow-x-hidden bg-gradient-to-b from-white to-gray-50">
+        <div className="min-h-screen w-full overflow-x-hidden bg-gradient-to-b from-white to-blue-100">
             <div className="mx-auto max-w-3xl px-6 py-10">
                 {/* Header / Status */}
                 <div className="mb-6 flex items-center justify-between">
