@@ -17,89 +17,89 @@ export default function MyPurchases() {
   const explorerTxUrl = (hash) =>
     `https://evm-testnet.flowscan.io/tx/${hash}`;
 
-const fetchPurchases = async (address) => {
-  if (!address || !address.startsWith("0x") || address.length !== 42) {
-    setToast({ type: "error", message: "Invalid wallet address" });
-    return;
-  }
-
-  try {
-    setLoading(true);
-
-    console.log("Fetching purchases for:", address);
-
-    // 1. Fetch purchases from DB
-    const res = await fetch(`/api/purchases?address=${address.toLowerCase()}`);
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: "Unknown error" }));
-      throw new Error(err.error || `HTTP ${res.status}`);
-    }
-
-    const data = await res.json();
-
-    if (!Array.isArray(data)) {
-      console.warn("Invalid response format:", data);
-      setPurchases([]);
+  const fetchPurchases = async (address) => {
+    if (!address || !address.startsWith("0x") || address.length !== 42) {
+      setToast({ type: "error", message: "Invalid wallet address" });
       return;
     }
 
-    console.log("Raw purchases:", data);
+    try {
+      setLoading(true);
 
-    // 2. Enrich each purchase with dataset info
-    const enriched = await Promise.all(
-      data.map(async (p) => {
-        const datasetId = p.datasetId || p._id;
-        if (!datasetId) {
-          console.warn("Missing datasetId in purchase:", p);
-          return p;
-        }
+      console.log("Fetching purchases for:", address);
 
-        try {
-          const infoRes = await fetch(`/api/datasets/info?id=${datasetId}`);
-          if (infoRes.ok) {
-            const dataset = await infoRes.json();
-            return {
-              _id: p._id?.toString() || p.id,
-              datasetId,
-              purchaserTokenId: p.purchaserTokenId,
-              txHash: p.txHash,
-              cid: p.cid || dataset.cid,
-              decryptionKey: p.decryptionKey || dataset.decryptionKey,
-              fileType: p.fileType || dataset.fileType || "application/pdf",
-              title: dataset.title || p.title || "Untitled Research",
-              description: dataset.description || p.description || "",
-              imageCid: dataset.imageCid || p.imageCid,
-              metadataCid: dataset.metadataCid || p.metadataCid,
-              purchasedAt: p.purchasedAt,
-            };
-          } else {
-            console.warn(`Dataset info failed for ${datasetId}: ${infoRes.status}`);
+      // 1. Fetch purchases from DB
+      const res = await fetch(`/api/purchases?address=${address.toLowerCase()}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Unknown error" }));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+
+      if (!Array.isArray(data)) {
+        console.warn("Invalid response format:", data);
+        setPurchases([]);
+        return;
+      }
+
+      console.log("Raw purchases:", data);
+
+      // 2. Enrich each purchase with dataset info
+      const enriched = await Promise.all(
+        data.map(async (p) => {
+          const datasetId = p.datasetId || p._id;
+          if (!datasetId) {
+            console.warn("Missing datasetId in purchase:", p);
+            return p;
           }
-        } catch (e) {
-          console.warn("Enrich failed:", datasetId, e);
-        }
 
-        // Fallback: return what we have
-        return {
-          ...p,
-          _id: p._id?.toString() || p.id,
-          title: p.title || "Untitled",
-          decryptionKey: p.decryptionKey || null,
-        };
-      })
-    );
+          try {
+            const infoRes = await fetch(`/api/datasets/info?id=${datasetId}`);
+            if (infoRes.ok) {
+              const dataset = await infoRes.json();
+              return {
+                _id: p._id?.toString() || p.id,
+                datasetId,
+                purchaserTokenId: p.purchaserTokenId,
+                txHash: p.txHash,
+                cid: p.cid || dataset.cid,
+                decryptionKey: p.decryptionKey || dataset.decryptionKey,
+                fileType: p.fileType || dataset.fileType || "application/pdf",
+                title: dataset.title || p.title || "Untitled Research",
+                description: dataset.description || p.description || "",
+                imageCid: dataset.imageCid || p.imageCid,
+                metadataCid: dataset.metadataCid || p.metadataCid,
+                purchasedAt: p.purchasedAt,
+              };
+            } else {
+              console.warn(`Dataset info failed for ${datasetId}: ${infoRes.status}`);
+            }
+          } catch (e) {
+            console.warn("Enrich failed:", datasetId, e);
+          }
 
-    console.log("Enriched purchases:", enriched);
-    setPurchases(enriched);
+          // Fallback: return what we have
+          return {
+            ...p,
+            _id: p._id?.toString() || p.id,
+            title: p.title || "Untitled",
+            decryptionKey: p.decryptionKey || null,
+          };
+        })
+      );
 
-  } catch (error) {
-    console.error("Fetch purchases error:", error);
-    setToast({ type: "error", message: `Failed to load purchases: ${error.message}` });
-    setPurchases([]);
-  } finally {
-    setLoading(false);
-  }
-};
+      console.log("Enriched purchases:", enriched);
+      setPurchases(enriched);
+
+    } catch (error) {
+      console.error("Fetch purchases error:", error);
+      setToast({ type: "error", message: `Failed to load purchases: ${error.message}` });
+      setPurchases([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleDecrypt = async (purchase) => {
     const id = purchase._id;
@@ -226,7 +226,7 @@ const fetchPurchases = async (address) => {
                   Refresh
                 </button>
                 <Link
-                  href="/datasets"
+                  href="/marketplace"
                   className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:shadow-md"
                 >
                   Explore Market
@@ -382,8 +382,8 @@ const fetchPurchases = async (address) => {
                               onClick={() => handleDecrypt(purchase)}
                               disabled={isDecrypting}
                               className={`w-full rounded-lg text-sm font-medium px-3 py-2 transition-all ${isDecrypting
-                                  ? "bg-gray-400 text-white cursor-not-allowed"
-                                  : "bg-gradient-to-r from-blue-600 to-blue-500 text-white hover:shadow-md"
+                                ? "bg-gray-400 text-white cursor-not-allowed"
+                                : "bg-gradient-to-r from-blue-600 to-blue-500 text-white hover:shadow-md"
                                 }`}
                             >
                               {isDecrypting ? "Decrypting..." : "Decrypt & Preview"}
@@ -403,7 +403,7 @@ const fetchPurchases = async (address) => {
                 <h3 className="mt-4 text-lg font-semibold text-gray-900">No purchases yet</h3>
                 <p className="mt-1 text-sm text-gray-600">When you purchase datasets, they will appear here.</p>
                 <Link
-                  href="/datasets"
+                  href="/marketplace"
                   className="mt-5 inline-flex rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:shadow-md"
                 >
                   Browse Marketplace
@@ -414,7 +414,7 @@ const fetchPurchases = async (address) => {
         )}
 
         <div className="mt-10">
-          <Link href="/datasets" className="text-blue-600 hover:underline">
+          <Link href="/marketplace" className="text-blue-600 hover:underline">
             Back to Marketplace
           </Link>
         </div>
@@ -427,8 +427,8 @@ const fetchPurchases = async (address) => {
             role="status"
             aria-live="polite"
             className={`rounded-lg border px-4 py-3 shadow-lg break-words whitespace-pre-line transition-all ${toast.type === "success"
-                ? "bg-white border-green-200 text-green-700"
-                : "bg-white border-red-200 text-red-700"
+              ? "bg-white border-green-200 text-green-700"
+              : "bg-white border-red-200 text-red-700"
               }`}
           >
             {toast.message}

@@ -79,157 +79,157 @@ export default function Home() {
         addNetworkIfNeeded();
     }, []);
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
+    const handleSubmit = async (e) => {
+        e.preventDefault();
 
-  if (!file || !imageFile || !formData.title || !walletConnected) {
-    alert("Connect wallet, title, research paper, and image are required");
-    return;
-  }
-  if (!apiKey) {
-    alert("Lighthouse API key missing");
-    return;
-  }
+        if (!file || !imageFile || !formData.title || !walletConnected) {
+            alert("Connect wallet, title, research paper, and image are required");
+            return;
+        }
+        if (!apiKey) {
+            alert("Lighthouse API key missing");
+            return;
+        }
 
-  setUploading(true);
-  setStepText("Encrypting research paper...");
-  setShowSuccess(false);
-  setResult(null);
+        setUploading(true);
+        setStepText("Encrypting research paper...");
+        setShowSuccess(false);
+        setResult(null);
 
-  try {
-    // -------------------------------------------------
-    // 1. Read PDF as binary
-    // -------------------------------------------------
-    const pdfArrayBuffer = await file.arrayBuffer();
-    const pdfUint8 = new Uint8Array(pdfArrayBuffer);
-    console.log("[Upload] Original PDF size:", pdfUint8.length, "bytes");
+        try {
+            // -------------------------------------------------
+            // 1. Read PDF as binary
+            // -------------------------------------------------
+            const pdfArrayBuffer = await file.arrayBuffer();
+            const pdfUint8 = new Uint8Array(pdfArrayBuffer);
+            console.log("[Upload] Original PDF size:", pdfUint8.length, "bytes");
 
-    // -------------------------------------------------
-    // 2. Generate 256-bit AES key (64-char hex)
-    // -------------------------------------------------
-    const rawKey = window.crypto.getRandomValues(new Uint8Array(32));
-    const keyHex = Array.from(rawKey)
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
-    console.log("[Upload] AES-256 key (hex):", keyHex);
+            // -------------------------------------------------
+            // 2. Generate 256-bit AES key (64-char hex)
+            // -------------------------------------------------
+            const rawKey = window.crypto.getRandomValues(new Uint8Array(32));
+            const keyHex = Array.from(rawKey)
+                .map((b) => b.toString(16).padStart(2, "0"))
+                .join("");
+            console.log("[Upload] AES-256 key (hex):", keyHex);
 
-    // -------------------------------------------------
-    // 3. Encrypt with AES-256-ECB + PKCS7
-    // -------------------------------------------------
-    setStepText("Encrypting file with AES-256...");
-    const wordArray = CryptoJS.lib.WordArray.create(pdfUint8);
-    const encrypted = CryptoJS.AES.encrypt(wordArray, CryptoJS.enc.Hex.parse(keyHex), {
-      mode: CryptoJS.mode.ECB,
-      padding: CryptoJS.pad.Pkcs7,
-    });
+            // -------------------------------------------------
+            // 3. Encrypt with AES-256-ECB + PKCS7
+            // -------------------------------------------------
+            setStepText("Encrypting file with AES-256...");
+            const wordArray = CryptoJS.lib.WordArray.create(pdfUint8);
+            const encrypted = CryptoJS.AES.encrypt(wordArray, CryptoJS.enc.Hex.parse(keyHex), {
+                mode: CryptoJS.mode.ECB,
+                padding: CryptoJS.pad.Pkcs7,
+            });
 
-    const ciphertextHex = encrypted.ciphertext.toString(CryptoJS.enc.Hex);
-    const ciphertextBytes = new Uint8Array(
-      (ciphertextHex.match(/.{2}/g) || []).map((b) => parseInt(b, 16))
-    );
-    console.log("[Upload] Encrypted size:", ciphertextBytes.length, "bytes");
+            const ciphertextHex = encrypted.ciphertext.toString(CryptoJS.enc.Hex);
+            const ciphertextBytes = new Uint8Array(
+                (ciphertextHex.match(/.{2}/g) || []).map((b) => parseInt(b, 16))
+            );
+            console.log("[Upload] Encrypted size:", ciphertextBytes.length, "bytes");
 
-    const encryptedFile = new File([ciphertextBytes], `${file.name}.enc`, {
-      type: "application/octet-stream",
-    });
+            const encryptedFile = new File([ciphertextBytes], `${file.name}.enc`, {
+                type: "application/octet-stream",
+            });
 
-    // -------------------------------------------------
-    // 4. Upload encrypted file to IPFS
-    // -------------------------------------------------
-    setStepText("Uploading encrypted file to IPFS...");
-    const encUpload = await lighthouse.upload([encryptedFile], apiKey);
-    const cid = encUpload.data?.Hash ?? encUpload.data?.[0]?.Hash ?? encUpload.data?.Hashes?.[0];
-    if (!cid) throw new Error("Failed to get encrypted CID");
-    console.log("[Upload] Encrypted CID:", cid);
+            // -------------------------------------------------
+            // 4. Upload encrypted file to IPFS
+            // -------------------------------------------------
+            setStepText("Uploading encrypted file to IPFS...");
+            const encUpload = await lighthouse.upload([encryptedFile], apiKey);
+            const cid = encUpload.data?.Hash ?? encUpload.data?.[0]?.Hash ?? encUpload.data?.Hashes?.[0];
+            if (!cid) throw new Error("Failed to get encrypted CID");
+            console.log("[Upload] Encrypted CID:", cid);
 
-    // -------------------------------------------------
-    // 5. Upload cover image
-    // -------------------------------------------------
-    setStepText("Uploading cover image...");
-    const imgUpload = await lighthouse.upload([imageFile], apiKey);
-    const imageCid = imgUpload.data?.Hash ?? imgUpload.data?.[0]?.Hash ?? imgUpload.data?.Hashes?.[0];
-    if (!imageCid) throw new Error("Failed to get image CID");
-    console.log("[Upload] Image CID:", imageCid);
+            // -------------------------------------------------
+            // 5. Upload cover image
+            // -------------------------------------------------
+            setStepText("Uploading cover image...");
+            const imgUpload = await lighthouse.upload([imageFile], apiKey);
+            const imageCid = imgUpload.data?.Hash ?? imgUpload.data?.[0]?.Hash ?? imgUpload.data?.Hashes?.[0];
+            if (!imageCid) throw new Error("Failed to get image CID");
+            console.log("[Upload] Image CID:", imageCid);
 
-    // -------------------------------------------------
-    // 6. Upload metadata JSON
-    // -------------------------------------------------
-    setStepText("Preparing metadata...");
-    const metadata = {
-      name: formData.title,
-      description: formData.description || "Encrypted Research Paper NFT",
-      image: `https://gateway.lighthouse.storage/ipfs/${imageCid}`,
-      external_url: `https://gateway.lighthouse.storage/ipfs/${cid}`,
-      attributes: [
-        { trait_type: "Encrypted CID", value: cid },
-        { trait_type: "Original File", value: file.name },
-        { trait_type: "File Type", value: file.type || "application/pdf" },
-      ],
+            // -------------------------------------------------
+            // 6. Upload metadata JSON
+            // -------------------------------------------------
+            setStepText("Preparing metadata...");
+            const metadata = {
+                name: formData.title,
+                description: formData.description || "Encrypted Research Paper NFT",
+                image: `https://gateway.lighthouse.storage/ipfs/${imageCid}`,
+                external_url: `https://gateway.lighthouse.storage/ipfs/${cid}`,
+                attributes: [
+                    { trait_type: "Encrypted CID", value: cid },
+                    { trait_type: "Original File", value: file.name },
+                    { trait_type: "File Type", value: file.type || "application/pdf" },
+                ],
+            };
+
+            const metaBlob = new Blob([JSON.stringify(metadata, null, 2)], { type: "application/json" });
+            const metaFile = new File([metaBlob], "metadata.json");
+
+            setStepText("Uploading metadata...");
+            const metaUp = await lighthouse.upload([metaFile], apiKey);
+            const metadataCid = metaUp.data?.Hash ?? metaUp.data?.[0]?.Hash ?? metaUp.data?.Hashes?.[0];
+            if (!metadataCid) throw new Error("Failed to get metadata CID");
+            console.log("[Upload] Metadata CID:", metadataCid);
+
+            // -------------------------------------------------
+            // 7. Mint NFT (pass keyHex)
+            // -------------------------------------------------
+            setStepText("Minting NFT...");
+            const tokenUri = `https://gateway.lighthouse.storage/ipfs/${metadataCid}`;
+            const { txHash, tokenId } = await mintNFT(walletAddress, tokenUri, cid, keyHex);
+            console.log("[Upload] Minted! Token ID:", tokenId, "Tx:", txHash);
+
+            // -------------------------------------------------
+            // 8. Save to backend — FINAL PAYLOAD
+            // -------------------------------------------------
+            setStepText("Saving to database...");
+            const dbPayload = {
+                title: formData.title,
+                description: formData.description,
+                cid,                    // encrypted file
+                imageCid,
+                metadataCid,
+                authorAddress: walletAddress,
+                decryptionKey: keyHex,  // ← 64-char hex
+                tokenId: parseInt(tokenId),
+                txHash,
+                fileType: file.type || "application/pdf",
+                originalFileName: file.name,
+            };
+
+            console.log("[Upload] Saving to DB:", dbPayload);
+
+            const res = await fetch("/api/upload", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(dbPayload),
+            });
+
+            const json = await res.json();
+            if (!res.ok) throw new Error(json.error || "Server error");
+
+            // -------------------------------------------------
+            // 9. Success
+            // -------------------------------------------------
+            setResult({ ...json, cid, txHash, tokenId });
+            setShowSuccess(true);
+            setToast({ type: "success", message: "PDF encrypted, uploaded, and NFT minted!" });
+            setTimeout(() => setToast(null), 4000);
+
+        } catch (error) {
+            console.error("[Upload] Error:", error);
+            setToast({ type: "error", message: `Error: ${error.message}` });
+            setTimeout(() => setToast(null), 5000);
+        } finally {
+            setUploading(false);
+            setStepText("");
+        }
     };
-
-    const metaBlob = new Blob([JSON.stringify(metadata, null, 2)], { type: "application/json" });
-    const metaFile = new File([metaBlob], "metadata.json");
-
-    setStepText("Uploading metadata...");
-    const metaUp = await lighthouse.upload([metaFile], apiKey);
-    const metadataCid = metaUp.data?.Hash ?? metaUp.data?.[0]?.Hash ?? metaUp.data?.Hashes?.[0];
-    if (!metadataCid) throw new Error("Failed to get metadata CID");
-    console.log("[Upload] Metadata CID:", metadataCid);
-
-    // -------------------------------------------------
-    // 7. Mint NFT (pass keyHex)
-    // -------------------------------------------------
-    setStepText("Minting NFT...");
-    const tokenUri = `https://gateway.lighthouse.storage/ipfs/${metadataCid}`;
-    const { txHash, tokenId } = await mintNFT(walletAddress, tokenUri, cid, keyHex);
-    console.log("[Upload] Minted! Token ID:", tokenId, "Tx:", txHash);
-
-    // -------------------------------------------------
-    // 8. Save to backend — FINAL PAYLOAD
-    // -------------------------------------------------
-    setStepText("Saving to database...");
-    const dbPayload = {
-      title: formData.title,
-      description: formData.description,
-      cid,                    // encrypted file
-      imageCid,
-      metadataCid,
-      authorAddress: walletAddress,
-      decryptionKey: keyHex,  // ← 64-char hex
-      tokenId: parseInt(tokenId),
-      txHash,
-      fileType: file.type || "application/pdf",
-      originalFileName: file.name,
-    };
-
-    console.log("[Upload] Saving to DB:", dbPayload);
-
-    const res = await fetch("/api/upload", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(dbPayload),
-    });
-
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Server error");
-
-    // -------------------------------------------------
-    // 9. Success
-    // -------------------------------------------------
-    setResult({ ...json, cid, txHash, tokenId });
-    setShowSuccess(true);
-    setToast({ type: "success", message: "PDF encrypted, uploaded, and NFT minted!" });
-    setTimeout(() => setToast(null), 4000);
-
-  } catch (error) {
-    console.error("[Upload] Error:", error);
-    setToast({ type: "error", message: `Error: ${error.message}` });
-    setTimeout(() => setToast(null), 5000);
-  } finally {
-    setUploading(false);
-    setStepText("");
-  }
-};
 
     return (
         <div className="min-h-screen w-full overflow-x-hidden bg-gradient-to-b from-white to-gray-50">
@@ -377,7 +377,7 @@ const handleSubmit = async (e) => {
                 {/* Footer */}
                 <div className="mt-6 flex justify-center">
                     <Link
-                        href="/datasets"
+                        href="/marketplace"
                         className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-slate-50"
                     >
                         ← Back to Marketplace
@@ -405,7 +405,7 @@ const handleSubmit = async (e) => {
                             </a>
                         </div>
                         <div className="mt-6 flex items-center justify-end gap-3">
-                            <Link href="/datasets" className="inline-flex items-center justify-center rounded-lg border border-blue-600 px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50">Go to Marketplace</Link>
+                            <Link href="/marketplace" className="inline-flex items-center justify-center rounded-lg border border-blue-600 px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50">Go to Marketplace</Link>
                             <button
                                 onClick={() => setShowSuccess(false)}
                                 className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
@@ -424,8 +424,8 @@ const handleSubmit = async (e) => {
                         role="status"
                         aria-live="polite"
                         className={`rounded-lg border px-4 py-3 shadow-lg break-words whitespace-pre-line ${toast.type === 'success'
-                                ? 'bg-white border-green-200 text-green-700'
-                                : 'bg-white border-red-200 text-red-700'
+                            ? 'bg-white border-green-200 text-green-700'
+                            : 'bg-white border-red-200 text-red-700'
                             }`}
                     >
                         {toast.message}

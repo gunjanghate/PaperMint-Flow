@@ -104,12 +104,12 @@ export async function GET(request) {
       datasetId: p.datasetId,
       purchaserTokenId: p.purchaserTokenId,
       txHash: p.txHash,
-      cid: p.cid,
-      decryptionKey: p.decryptionKey,
-      fileType: p.fileType,
-      title: p.title,
-      imageCid: p.imageCid,
-      metadataCid: p.metadataCid,
+      // cid: p.cid,
+      // decryptionKey: p.decryptionKey,
+      // fileType: p.fileType,
+      // title: p.title,
+      // imageCid: p.imageCid,
+      // metadataCid: p.metadataCid,
       purchasedAt: p.purchasedAt,
     }));
 

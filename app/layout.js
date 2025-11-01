@@ -1,7 +1,7 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Link from "next/link";
-import {WalletProvider} from "@/components/wallet/WalletProvider";
+import { WalletProvider } from "@/components/wallet/WalletProvider";
 import WalletButton from "@/components/wallet/WalletButton";
 import pmlogo from "@/public/pmlogo.png"
 import Image from "next/image";
@@ -67,7 +67,7 @@ export default function RootLayout({ children }) {
                 {/* Desktop Nav */}
                 <nav className="hidden md:flex items-center gap-1">
                   <Link
-                    href="/datasets"
+                    href="/marketplace"
                     className="group relative rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:text-slate-900"
                   >
                     <span>Marketplace</span>

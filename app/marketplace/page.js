@@ -425,7 +425,7 @@ export default function Datasets() {
               const priceLabel = (0.01 + views * 0.001).toFixed(4) + ' flow';
               const accessType = 'NFT-Gated • Paid';
               const hasImage = Boolean(dataset.imageCid);
-
+            
               return (
                 <li
                   key={dataset._id}

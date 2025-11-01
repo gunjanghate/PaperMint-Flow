@@ -75,7 +75,7 @@ export default function NFTInfo() {
       <div className="mx-auto max-w-2xl px-6 py-10">
         {/* Back link */}
         <div className="mb-4">
-          <Link href="/datasets" className="text-blue-600 hover:underline">← Back to Marketplace</Link>
+          <Link href="/marketplace" className="text-blue-600 hover:underline">← Back to Marketplace</Link>
         </div>
 
         {/* Header */}

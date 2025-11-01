@@ -84,7 +84,7 @@ export default function Hero() {
                             <span className="ml-2">↗</span>
                         </Link>
                         <Link
-                            href="/datasets"
+                            href="/marketplace"
                             className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
                         >
                             Browse Marketplace
